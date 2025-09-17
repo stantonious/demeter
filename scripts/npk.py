@@ -35,6 +35,8 @@ GPIO.output(RE_PIN, GPIO.LOW)
 def print_results(r):
     for _n in r:
         print (hex(_n))
+    else:
+        print ('nada')
         
 def get_data(cmd,bytes_to_read=7):
     GPIO.output(DE_PIN, GPIO.HIGH)
@@ -45,6 +47,7 @@ def get_data(cmd,bytes_to_read=7):
     print ('write ret:',cmd,r)
     GPIO.output(DE_PIN, GPIO.LOW)
     GPIO.output(RE_PIN, GPIO.LOW)
+    time.sleep(.01)
     res = ser.read(bytes_to_read)
     print_results(res)
 

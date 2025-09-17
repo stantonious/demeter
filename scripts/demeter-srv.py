@@ -1,0 +1,424 @@
+#!/usr/bin/env python3
+
+import dbus
+import dbus.mainloop.glib
+import dbus.service
+from gi.repository import GLib
+import threading
+import time
+import struct
+import numpy as np
+import serial
+import struct
+import RPi.GPIO as GPIO
+
+SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
+CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
+CHAR_VALUE = [dbus.Byte(0x00)]
+
+
+
+# Raw Modbus request: Read 3 registers starting at 0x001E
+modbus_request = bytes.fromhex("01 03 00 1E 00 03 65 CD")
+
+# RS485 port and GPIO setup
+PORT = '/dev/serial0'
+BAUDRATE = 9600
+TX_ENABLE_PIN = 18  # GPIO18 controls DE/RE
+
+# Setup GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(TX_ENABLE_PIN, GPIO.OUT)
+GPIO.output(TX_ENABLE_PIN, GPIO.LOW)  # Default to receive mode
+
+
+sensor_val = 0
+pot_val = 0.
+nit_val = 0.
+phr_val = 0.
+
+
+def sensor_task():
+    global sensor_val
+    while 1:
+        time.sleep(1)
+        sensor_val += 1
+
+class Characteristic(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+                "Value": CHAR_VALUE
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [sensor_val]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}", out_signature="")
+    def WriteValue(self, value, options):
+        global CHAR_VALUE
+        CHAR_VALUE = value
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        GLib.timeout_add_seconds(2, self._notify)
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            print ('ret')
+            return False
+        print ('notif')
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [(sensor_val + 1) % 255]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class NitChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 23.5  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = nit_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class KChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 23.5  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = pot_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class PChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 23.5  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = phr_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class Service(dbus.service.Object):
+    def __init__(self, bus, index, uuid, primary):
+        self.path = f"/org/bluez/example/service{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.primary = primary
+        self.characteristics = []
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattService1": {
+                "UUID": self.uuid,
+                "Primary": self.primary
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+class Application(dbus.service.Object):
+    def __init__(self, bus):
+        self.path = "/"
+        self.services = []
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    def add_service(self, service):
+        self.services.append(service)
+
+    @dbus.service.method("org.freedesktop.DBus.ObjectManager",
+                         out_signature="a{oa{sa{sv}}}")
+    def GetManagedObjects(self):
+        response = {}
+        for service in self.services:
+            response[service.get_path()] = service.get_properties()
+            for char in service.characteristics:
+                response[char.get_path()] = char.get_properties()
+        return response
+
+
+
+class NpkSensor(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.duty_cycle_delay = .05
+        self.running = True
+
+
+    def stop():
+        self.running = False
+
+    def parse_response(self,response):
+        global nit_val
+        global pot_val
+        global phr_val
+        if len(response) < 9:
+            print("Incomplete response:", response.hex())
+            return
+
+        byte_count = response[2]
+        if byte_count != 6:
+            print("Unexpected byte count:", byte_count)
+            return
+
+        npk_raw = response[3:9]
+        nit_val   = struct.unpack(">H", npk_raw[0:2])[0]
+        phr_val = struct.unpack(">H", npk_raw[2:4])[0]
+        pot_val  = struct.unpack(">H", npk_raw[4:6])[0]
+
+        print(f"Nitrogen:   {nit_val} mg/kg")
+        print(f"Phosphorus: {phr_val} mg/kg")
+        print(f"Potassium:  {pot_val} mg/kg")
+
+    def read_npk(self):
+        try:
+            with serial.Serial(PORT, BAUDRATE, timeout=1) as ser:
+                ser.flushInput()
+
+                # Enable transmit mode
+                GPIO.output(TX_ENABLE_PIN, GPIO.HIGH)
+                time.sleep(0.02)
+    
+                ser.write(modbus_request)
+                ser.flush()
+
+                # Switch to receive mode
+                GPIO.output(TX_ENABLE_PIN, GPIO.LOW)
+
+                time.sleep(0.01)
+                response = ser.read(11)
+                self.parse_response(response)
+
+        except Exception as e:
+            print(f"Communication error: {e}")
+
+
+    def duty_cycle(self):
+        print ('starting duty cycle')
+        try:
+                self.read_npk()
+        except Exception as e:
+            GPIO.cleanup()
+            raise e
+
+
+    def run(self):
+        while self.running:
+            self.duty_cycle()
+            time.sleep(self.duty_cycle_delay)
+
+def main():
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+
+    app = Application(bus)
+    service = Service(bus, 0, SERVICE_UUID, True)
+    char = Characteristic(bus, 0, CHAR_UUID, ["read", "notify"], service)
+    nit_char = NitChar(bus, 1,
+    "12345678-1234-5678-1234-56789abcdef2", ["read", "notify"], service)
+    service.characteristics.append(nit_char)
+    k_char = KChar(bus, 2,
+    "12345678-1234-5678-1234-56789abcdef3", ["read", "notify"], service)
+    service.characteristics.append(k_char)
+    p_char = PChar(bus, 3,
+    "12345678-1234-5678-1234-56789abcdef4", ["read", "notify"], service)
+    service.characteristics.append(p_char)
+    service.characteristics.append(char)
+    app.add_service(service)
+
+    adapter_path = "/org/bluez/hci0"
+    gatt_manager = dbus.Interface(bus.get_object("org.bluez", adapter_path),
+                                  "org.bluez.GattManager1")
+
+    gatt_manager.RegisterApplication(app.get_path(), {},
+                                     reply_handler=lambda: print("GATT app registered"),
+                                     error_handler=lambda e: print(f"Failed to register: {e}"))
+
+    t1 = threading.Thread(target=sensor_task,args=())
+    t1.start()
+    npk = NpkSensor()
+    npk.start()
+    GLib.MainLoop().run()
+    npk.stop()
+
+if __name__ == "__main__":
+    main()
