@@ -132,16 +132,6 @@ void drawHomeView() {
   int ledColor = connected ? GREEN : RED;
   M5.Display.fillCircle(280, 20, 10, ledColor);
 
-  // Status message
-  M5.Display.setCursor(10, 220);
-  if (scanning) {
-    M5.Display.print("Scanning...");
-  } else if (connected) {
-    M5.Display.print("Connected");
-  } else {
-    M5.Display.print("Disconnected");
-  }
-
   // Swipe indicators
   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Down arrow
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
@@ -299,7 +289,8 @@ void drawBitmapView() {
   M5.Display.setTextSize(2);
   M5.Display.println("Bitmap View");
   M5.Display.pushImage(96, 56, 128, 128, myBitmap);
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow
+
+   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);
 }
 
 void drawControlView() {
@@ -324,4 +315,5 @@ void drawControlView() {
 
   // Swipe indicator
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
+  
 }
