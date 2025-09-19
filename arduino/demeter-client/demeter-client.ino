@@ -6,9 +6,11 @@ const String demeter_mac = "dc:a6:32:d5:4e:9e";
 const char* uuidN = "12345678-1234-5678-1234-56789abcdef2";
 const char* uuidK = "12345678-1234-5678-1234-56789abcdef3";
 const char* uuidP = "12345678-1234-5678-1234-56789abcdef4";
+const char* uuidSuggest = "12345678-1234-5678-1234-56789abcdef5";
+const char* uuidLlm = "12345678-1234-5678-1234-56789abcdef6";
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
@@ -79,14 +81,24 @@ void handleTouch() {
           }
         } else if (currentView == CONTROL) {
           if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
-            suggestionText = "BLECharacteristic tempCharacteristic(\n"
-                     "  \"273e0002-4c4d-454d-96be-f03bac821358\",\n"
-                     "  BLEWrite | BLERead | BLENotify,\n"
-                     "  20\n"
-                     ");";
-            drawControlView();
+            if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
+              int32_t value_to_write = 1;
+              suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+              Serial.printf("sending suggest\n");              
+              delay(100); // Give server a moment to process
+
+              
+
+              drawControlView();
+            }
           } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
-            suggestionText = "";
+
+            byte buffer[1024];
+              int length = llmChar.readValue(buffer, sizeof(buffer));
+              Serial.printf("length %i\n",length);
+              buffer[length] = '\0';
+              suggestionText = String((char*)buffer);
+              Serial.printf("received response %s\n",suggestionText);
             drawControlView();
           }
         }
@@ -233,6 +245,8 @@ void setupCharacteristics() {
   nChar = peripheral.characteristic(uuidN);
   kChar = peripheral.characteristic(uuidK);
   pChar = peripheral.characteristic(uuidP);
+  suggestChar = peripheral.characteristic(uuidSuggest);
+  llmChar = peripheral.characteristic(uuidLlm);
 
   if (nChar && nChar.canSubscribe()) {
     nChar.subscribe();
@@ -314,11 +328,12 @@ void drawControlView() {
   // Draw Clear Button
   M5.Display.drawRect(200, 200, 100, 40, WHITE);
   M5.Display.setCursor(210, 212);
-  M5.Display.print("Clear");
+  M5.Display.print("Refresh");
 
-  M5.Display.setCursor(10, 60);
-  M5.Display.setTextSize(2);
+  M5.Display.setCursor(10, 0);
+  M5.Display.setTextSize(1);
   M5.Display.print(suggestionText);
+  Serial.printf("print text %s\n",suggestionText.c_str());
 
   // Swipe indicator
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)

@@ -11,6 +11,7 @@ import numpy as np
 import serial
 import struct
 import RPi.GPIO as GPIO
+from ollama import generate
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -273,6 +274,85 @@ class PChar(dbus.service.Object):
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
 
+
+current_llm_response = ""
+
+class IntWritableChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0  # Initial integer value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        # Pack integer as 4-byte little-endian
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        # Unpack 4-byte little-endian integer
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set integer value to: {self.value}")
+            if self.value == 1:
+                print ('sending ollama req')
+                llm_prompt = f'Suggest a plant name that will thrive in soil conditions that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus.  Provide a succinct response.  '
+                global current_llm_response
+                current_llm_response = generate('tinyllama',llm_prompt).response
+                print ('got ollama res',current_llm_response)
+        else:
+            print(f"Received invalid byte array length: {len(value)}")
+
+
+class StringChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = "Initial LLM response"
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        truncated_value = current_llm_response[:512]
+        print('Reading llm response',truncated_value)
+        return [dbus.Byte(c) for c in truncated_value.encode('utf-8')]
+
+
 class Service(dbus.service.Object):
     def __init__(self, bus, index, uuid, primary):
         self.path = f"/org/bluez/example/service{index}"
@@ -332,12 +412,12 @@ class NpkSensor(threading.Thread):
         global pot_val
         global phr_val
         if len(response) < 9:
-            print("Incomplete response:", response.hex())
+            #print("Incomplete response:", response.hex())
             return
 
         byte_count = response[2]
         if byte_count != 6:
-            print("Unexpected byte count:", byte_count)
+            #print("Unexpected byte count:", byte_count)
             return
 
         npk_raw = response[3:9]
@@ -345,9 +425,9 @@ class NpkSensor(threading.Thread):
         phr_val = struct.unpack(">H", npk_raw[2:4])[0]
         pot_val  = struct.unpack(">H", npk_raw[4:6])[0]
 
-        print(f"Nitrogen:   {nit_val} mg/kg")
-        print(f"Phosphorus: {phr_val} mg/kg")
-        print(f"Potassium:  {pot_val} mg/kg")
+        #print(f"Nitrogen:   {nit_val} mg/kg")
+        #print(f"Phosphorus: {phr_val} mg/kg")
+        #print(f"Potassium:  {pot_val} mg/kg")
 
     def read_npk(self):
         try:
@@ -373,7 +453,7 @@ class NpkSensor(threading.Thread):
 
 
     def duty_cycle(self):
-        print ('starting duty cycle')
+        #print ('starting duty cycle')
         try:
                 self.read_npk()
         except Exception as e:
@@ -393,6 +473,7 @@ def main():
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
     char = Characteristic(bus, 0, CHAR_UUID, ["read", "notify"], service)
+    service.characteristics.append(char)
     nit_char = NitChar(bus, 1,
     "12345678-1234-5678-1234-56789abcdef2", ["read", "notify"], service)
     service.characteristics.append(nit_char)
@@ -402,7 +483,12 @@ def main():
     p_char = PChar(bus, 3,
     "12345678-1234-5678-1234-56789abcdef4", ["read", "notify"], service)
     service.characteristics.append(p_char)
-    service.characteristics.append(char)
+    int_writable_char = IntWritableChar(bus, 4,
+    "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
+    service.characteristics.append(int_writable_char)
+    llm_response_char = StringChar(bus, 5,
+    "12345678-1234-5678-1234-56789abcdef6", ["read"], service)
+    service.characteristics.append(llm_response_char)
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
