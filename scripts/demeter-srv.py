@@ -314,6 +314,35 @@ class IntWritableChar(dbus.service.Object):
             print(f"Received invalid byte array length: {len(value)}")
 
 
+class StringChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = "Initial LLM response"
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        truncated_value = self.value[:256]
+        return [dbus.Byte(c) for c in truncated_value.encode('utf-8')]
+
+
 class Service(dbus.service.Object):
     def __init__(self, bus, index, uuid, primary):
         self.path = f"/org/bluez/example/service{index}"
@@ -434,6 +463,7 @@ def main():
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
     char = Characteristic(bus, 0, CHAR_UUID, ["read", "notify"], service)
+    service.characteristics.append(char)
     nit_char = NitChar(bus, 1,
     "12345678-1234-5678-1234-56789abcdef2", ["read", "notify"], service)
     service.characteristics.append(nit_char)
@@ -446,7 +476,9 @@ def main():
     int_writable_char = IntWritableChar(bus, 4,
     "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
     service.characteristics.append(int_writable_char)
-    service.characteristics.append(char)
+    llm_response_char = StringChar(bus, 5,
+    "12345678-1234-5678-1234-56789abcdef6", ["read"], service)
+    service.characteristics.append(llm_response_char)
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
