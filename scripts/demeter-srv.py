@@ -273,6 +273,47 @@ class PChar(dbus.service.Object):
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
 
+
+class IntWritableChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0  # Initial integer value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        # Pack integer as 4-byte little-endian
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        # Unpack 4-byte little-endian integer
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set integer value to: {self.value}")
+        else:
+            print(f"Received invalid byte array length: {len(value)}")
+
+
 class Service(dbus.service.Object):
     def __init__(self, bus, index, uuid, primary):
         self.path = f"/org/bluez/example/service{index}"
@@ -402,6 +443,9 @@ def main():
     p_char = PChar(bus, 3,
     "12345678-1234-5678-1234-56789abcdef4", ["read", "notify"], service)
     service.characteristics.append(p_char)
+    int_writable_char = IntWritableChar(bus, 4,
+    "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
+    service.characteristics.append(int_writable_char)
     service.characteristics.append(char)
     app.add_service(service)
 
