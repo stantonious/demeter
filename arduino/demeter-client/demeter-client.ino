@@ -16,6 +16,8 @@ const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
+int ledColor = DARKGREY;
+bool disconnecting = false;
 float lastN = 0, lastK = 0, lastP = 0;
 
 // Touch gesture state
@@ -73,10 +75,11 @@ void handleTouch() {
         // --- App-specific buttons
         if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
           if (connected) {
+            disconnecting = true;
             peripheral.disconnect();
-            connected = false;
-            drawHomeView();
           } else {
+            ledColor = YELLOW;
+            drawHomeView();
             startBleScan();
           }
         } else if (currentView == CONTROL) {
@@ -153,7 +156,6 @@ void drawHomeView() {
   M5.Display.drawCenterString(txt, 170, 120);
 
   // Draw Status LED
-  int ledColor = connected ? GREEN : RED;
   M5.Display.fillCircle(280, 20, 10, ledColor);
 
   // Swipe indicators
@@ -204,14 +206,19 @@ void loop() {
         peripheral = device;
         connected = true;
         if (peripheral.discoverAttributes()) {
+          ledColor = GREEN;
           setupCharacteristics();
           drawHomeView(); // Update view after connecting
         } else {
           Serial.println("Failed to discover attributes");
+          ledColor = RED;
+          drawHomeView();
           BLE.scan();
         }
       } else {
         Serial.println("Connection failed");
+        ledColor = RED;
+        drawHomeView();
         BLE.scan();
       }
     }
@@ -219,6 +226,12 @@ void loop() {
 
   if (connected && !peripheral.connected()) {
       connected = false;
+      if (disconnecting) {
+        ledColor = DARKGREY;
+        disconnecting = false;
+      } else {
+        ledColor = RED;
+      }
       drawHomeView();
   }
 
