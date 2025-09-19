@@ -24,7 +24,6 @@ enum View { HOME, PLOT, BITMAP, CONTROL };
 #include "bitmap_data.h"
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
-View previousView = HOME;
 String suggestionText = "";
 
 void handleBLEData();
@@ -43,23 +42,28 @@ void handleTouch() {
       int dx = detail.x - touch_x;
       int dy = detail.y - touch_y;
       if (abs(dx) > abs(dy) && abs(dx) > 50) { // Horizontal swipe
-        if (dx > 0) { // Swipe right
-          currentView = HOME;
-        } else { // Swipe left
-          currentView = PLOT;
+        if (currentView == HOME) {
+          if (dx < 0) { // Swipe left
+            currentView = PLOT;
+          }
+        } else if (currentView == PLOT) {
+          if (dx > 0) { // Swipe right
+            currentView = HOME;
+          }
         }
       } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
-        if (dy > 0) { // Swipe down
-          if (currentView == HOME || currentView == PLOT) {
-            previousView = currentView;
-            currentView = CONTROL;
-          } else {
+        if (currentView == HOME) {
+          if (dy < 0) { // Swipe up
             currentView = BITMAP;
+          } else { // Swipe down
+            currentView = CONTROL;
           }
-        } else { // Swipe up
-          if (currentView == CONTROL) {
-            currentView = previousView;
-          } else {
+        } else if (currentView == BITMAP) {
+          if (dy > 0) { // Swipe down
+            currentView = HOME;
+          }
+        } else if (currentView == CONTROL) {
+          if (dy < 0) { // Swipe up
             currentView = HOME;
           }
         }
@@ -307,7 +311,7 @@ void drawControlView() {
   M5.Display.setCursor(210, 212);
   M5.Display.print("Clear");
 
-  M5.Display.setCursor(10, 40);
+  M5.Display.setCursor(10, 60);
   M5.Display.setTextSize(2);
   M5.Display.print(suggestionText);
 }
