@@ -1,0 +1,5 @@
+numpy
+dbus-python
+PyGObject
+pyserial
+ollama
