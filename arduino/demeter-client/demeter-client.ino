@@ -137,11 +137,8 @@ void drawHomeView() {
   M5.Display.fillRoundRect(110, 100, 120, 40, 10, BLUE);
   M5.Display.setTextColor(WHITE);
   const char* txt = connected ? "Disconnect" : "Connect";
-  int16_t x1, y1;
-  uint16_t w, h;
-  M5.Display.getTextBounds(txt, 0, 0, &x1, &y1, &w, &h);
-  M5.Display.setCursor(110 + (120 - w) / 2, 100 + (40 - h) / 2);
-  M5.Display.print(txt);
+  // The button is at (110, 100) with size 120x40, so center is (170, 120)
+  M5.Display.drawCenterString(txt, 170, 120);
 
   // Draw Status LED
   int ledColor = connected ? GREEN : RED;
