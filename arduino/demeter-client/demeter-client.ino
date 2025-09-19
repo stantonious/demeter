@@ -84,18 +84,21 @@ void handleTouch() {
             if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
               int32_t value_to_write = 1;
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
-
+              Serial.printf("sending suggest\n");              
               delay(100); // Give server a moment to process
 
-              byte buffer[256];
-              int length = llmChar.readValue(buffer, sizeof(buffer));
-              buffer[length] = '\0';
-              suggestionText = String((char*)buffer);
+              
 
               drawControlView();
             }
           } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
-            suggestionText = "";
+
+            byte buffer[1024];
+              int length = llmChar.readValue(buffer, sizeof(buffer));
+              Serial.printf("length %i\n",length);
+              buffer[length] = '\0';
+              suggestionText = String((char*)buffer);
+              Serial.printf("received response %s\n",suggestionText);
             drawControlView();
           }
         }
@@ -325,11 +328,12 @@ void drawControlView() {
   // Draw Clear Button
   M5.Display.drawRect(200, 200, 100, 40, WHITE);
   M5.Display.setCursor(210, 212);
-  M5.Display.print("Clear");
+  M5.Display.print("Refresh");
 
-  M5.Display.setCursor(10, 60);
-  M5.Display.setTextSize(2);
+  M5.Display.setCursor(10, 0);
+  M5.Display.setTextSize(1);
   M5.Display.print(suggestionText);
+  Serial.printf("print text %s\n",suggestionText.c_str());
 
   // Swipe indicator
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)
