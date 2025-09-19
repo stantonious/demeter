@@ -278,6 +278,13 @@ class PChar(dbus.service.Object):
 current_llm_response = ""
 is_generating = False
 
+def update_generating_status(start_time):
+    global current_llm_response
+    while is_generating:
+        elapsed = int(time.time() - start_time)
+        current_llm_response = f"Generating... {elapsed}s"
+        time.sleep(1)
+
 def generate_llm_response(prompt):
     global current_llm_response, is_generating
     if is_generating:
@@ -285,8 +292,13 @@ def generate_llm_response(prompt):
 
     is_generating = True
     print('starting ollama req in background')
+    start_time = time.time()
+
+    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,))
+    counter_thread.daemon = True
+    counter_thread.start()
+
     try:
-        current_llm_response = "Generating..."
         response = generate('tinyllama', prompt).response
         current_llm_response = response
         print('got ollama res in background:', current_llm_response)
