@@ -47,7 +47,7 @@ void handleTouch() {
             currentView = PLOT;
           }
         } else if (currentView == PLOT) {
-          if (dx < 0) { // Swipe left
+          if (dx > 0) { // Swipe right
             currentView = HOME;
           }
         }
@@ -59,11 +59,11 @@ void handleTouch() {
             currentView = CONTROL;
           }
         } else if (currentView == BITMAP) {
-          if (dy < 0) { // Swipe up
+          if (dy > 0) { // Swipe up
             currentView = HOME;
           }
         } else if (currentView == CONTROL) {
-          if (dy > 0) { // Swipe down
+          if (dy < 0) { // Swipe down
             currentView = HOME;
           }
         }
