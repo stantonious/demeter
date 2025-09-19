@@ -20,19 +20,21 @@ float lastN = 0, lastK = 0, lastP = 0;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT };
+enum View { HOME, PLOT, BITMAP };
+#include "bitmap_data.h"
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 
 void handleBLEData();
 void startBleScan();
+void drawBitmapView();
 
 void handleTouch() {
   auto detail = M5.Touch.getDetail();
   if (detail.wasPressed()) {
     touch_x = detail.x;
     touch_y = detail.y;
-    Serial.printf("touched %i %i\n",touch_x,touch_y);
+    Serial.printf("touched %i %i\n", touch_x, touch_y);
   } else if (detail.wasReleased()) {
     if (touch_x != -1) {
       int dx = detail.x - touch_x;
@@ -43,9 +45,21 @@ void handleTouch() {
         } else { // Swipe left
           currentView = PLOT;
         }
+      } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
+        if (dy > 0) { // Swipe down
+          currentView = BITMAP;
+        } else { // Swipe up
+          currentView = HOME;
+        }
       } else { // Button press
         if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
-          startBleScan();
+          if (connected) {
+            peripheral.disconnect();
+            connected = false;
+            drawHomeView();
+          } else {
+            startBleScan();
+          }
         }
       }
     }
@@ -77,10 +91,14 @@ void drawHomeView() {
   M5.Display.fillScreen(BLACK);
   M5.Display.setTextSize(2);
 
-  // Draw Connect Button
-  M5.Display.drawRect(110, 100, 100, 40, WHITE);
+  // Draw Connect/Disconnect Button
+  M5.Display.drawRect(110, 100, 120, 40, WHITE);
   M5.Display.setCursor(120, 112);
-  M5.Display.print("Connect");
+  if (connected) {
+    M5.Display.print("Disconnect");
+  } else {
+    M5.Display.print("Connect");
+  }
 
   // Draw Status LED
   int ledColor = connected ? GREEN : RED;
@@ -117,6 +135,9 @@ void loop() {
           M5.Display.println("Plot View - Disconnected");
         }
         break;
+      case BITMAP:
+        drawBitmapView();
+        break;
     }
   }
 
@@ -127,7 +148,6 @@ void loop() {
   // BLE connection logic
   if (!connected) {
     BLEDevice device = BLE.available();
-    Serial.printf("device %s\n",device.address().c_str());
     if (device && device.address() == demeter_mac) {
       BLE.stopScan();
       scanning = false;
@@ -136,6 +156,7 @@ void loop() {
         connected = true;
         if (peripheral.discoverAttributes()) {
           setupCharacteristics();
+          drawHomeView(); // Update view after connecting
         } else {
           Serial.println("Failed to discover attributes");
           BLE.scan();
@@ -146,6 +167,12 @@ void loop() {
       }
     }
   }
+
+  if (connected && !peripheral.connected()) {
+      connected = false;
+      drawHomeView();
+  }
+
   delay(100);
 }
 
@@ -227,4 +254,12 @@ void drawLabels(float n, float k, float p) {
   M5.Display.printf("K: %.2f mg/kg", k);
 
   M5.Display.setTextColor(WHITE);  // Reset to default for other text
+}
+
+void drawBitmapView() {
+  M5.Display.fillScreen(BLACK);
+  M5.Display.setCursor(10, 10);
+  M5.Display.setTextSize(2);
+  M5.Display.println("Bitmap View");
+  M5.Display.pushImage(96, 56, 128, 128, myBitmap);
 }
