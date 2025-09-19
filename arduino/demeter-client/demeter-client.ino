@@ -6,9 +6,10 @@ const String demeter_mac = "dc:a6:32:d5:4e:9e";
 const char* uuidN = "12345678-1234-5678-1234-56789abcdef2";
 const char* uuidK = "12345678-1234-5678-1234-56789abcdef3";
 const char* uuidP = "12345678-1234-5678-1234-56789abcdef4";
+const char* uuidSuggest = "12345678-1234-5678-1234-56789abcdef5";
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
@@ -79,12 +80,12 @@ void handleTouch() {
           }
         } else if (currentView == CONTROL) {
           if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
-            suggestionText = "BLECharacteristic tempCharacteristic(\n"
-                     "  \"273e0002-4c4d-454d-96be-f03bac821358\",\n"
-                     "  BLEWrite | BLERead | BLENotify,\n"
-                     "  20\n"
-                     ");";
-            drawControlView();
+            if (suggestChar && suggestChar.canWrite()) {
+              int32_t value_to_write = 1;
+              suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+              suggestionText = "Suggestion sent!";
+              drawControlView();
+            }
           } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
             suggestionText = "";
             drawControlView();
@@ -233,6 +234,7 @@ void setupCharacteristics() {
   nChar = peripheral.characteristic(uuidN);
   kChar = peripheral.characteristic(uuidK);
   pChar = peripheral.characteristic(uuidP);
+  suggestChar = peripheral.characteristic(uuidSuggest);
 
   if (nChar && nChar.canSubscribe()) {
     nChar.subscribe();
