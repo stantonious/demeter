@@ -20,14 +20,16 @@ float lastN = 0, lastK = 0, lastP = 0;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT, BITMAP };
+enum View { HOME, PLOT, BITMAP, CONTROL };
 #include "bitmap_data.h"
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
+String suggestionText = "";
 
 void handleBLEData();
 void startBleScan();
 void drawBitmapView();
+void drawControlView();
 
 void handleTouch() {
   auto detail = M5.Touch.getDetail();
@@ -40,16 +42,30 @@ void handleTouch() {
       int dx = detail.x - touch_x;
       int dy = detail.y - touch_y;
       if (abs(dx) > abs(dy) && abs(dx) > 50) { // Horizontal swipe
-        if (dx > 0) { // Swipe right
-          currentView = HOME;
-        } else { // Swipe left
-          currentView = PLOT;
+        if (currentView == HOME) {
+          if (dx < 0) { // Swipe left
+            currentView = PLOT;
+          }
+        } else if (currentView == PLOT) {
+          if (dx > 0) { // Swipe right
+            currentView = HOME;
+          }
         }
       } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
-        if (dy > 0) { // Swipe down
-          currentView = BITMAP;
-        } else { // Swipe up
-          currentView = HOME;
+        if (currentView == HOME) {
+          if (dy < 0) { // Swipe up
+            currentView = BITMAP;
+          } else { // Swipe down
+            currentView = CONTROL;
+          }
+        } else if (currentView == BITMAP) {
+          if (dy > 0) { // Swipe down
+            currentView = HOME;
+          }
+        } else if (currentView == CONTROL) {
+          if (dy < 0) { // Swipe up
+            currentView = HOME;
+          }
         }
       } else { // Button press
         if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
@@ -59,6 +75,18 @@ void handleTouch() {
             drawHomeView();
           } else {
             startBleScan();
+          }
+        } else if (currentView == CONTROL) {
+          if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
+            suggestionText = "BLECharacteristic tempCharacteristic(\n"
+                     "  \"273e0002-4c4d-454d-96be-f03bac821358\",\n"
+                     "  BLEWrite | BLERead | BLENotify,\n"
+                     "  20\n"
+                     ");";
+            drawControlView();
+          } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
+            suggestionText = "";
+            drawControlView();
           }
         }
       }
@@ -104,15 +132,10 @@ void drawHomeView() {
   int ledColor = connected ? GREEN : RED;
   M5.Display.fillCircle(280, 20, 10, ledColor);
 
-  // Status message
-  M5.Display.setCursor(10, 220);
-  if (scanning) {
-    M5.Display.print("Scanning...");
-  } else if (connected) {
-    M5.Display.print("Connected");
-  } else {
-    M5.Display.print("Disconnected");
-  }
+  // Swipe indicators
+  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Down arrow
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Left arrow
 }
 
 void loop() {
@@ -137,6 +160,9 @@ void loop() {
         break;
       case BITMAP:
         drawBitmapView();
+        break;
+      case CONTROL:
+        drawControlView();
         break;
     }
   }
@@ -236,6 +262,7 @@ void drawPlot() {
     int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
     M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
   }
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow
 }
 
 void drawLabels(float n, float k, float p) {
@@ -262,4 +289,31 @@ void drawBitmapView() {
   M5.Display.setTextSize(2);
   M5.Display.println("Bitmap View");
   M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+
+   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);
+}
+
+void drawControlView() {
+  M5.Display.fillScreen(BLACK);
+  M5.Display.setCursor(10, 10);
+  M5.Display.setTextSize(2);
+  M5.Display.println("Control Panel");
+
+  // Draw Suggest Button
+  M5.Display.drawRect(20, 200, 100, 40, WHITE);
+  M5.Display.setCursor(30, 212);
+  M5.Display.print("Suggest");
+
+  // Draw Clear Button
+  M5.Display.drawRect(200, 200, 100, 40, WHITE);
+  M5.Display.setCursor(210, 212);
+  M5.Display.print("Clear");
+
+  M5.Display.setCursor(10, 60);
+  M5.Display.setTextSize(2);
+  M5.Display.print(suggestionText);
+
+  // Swipe indicator
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
+  
 }
