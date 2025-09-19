@@ -141,6 +141,11 @@ void drawHomeView() {
   } else {
     M5.Display.print("Disconnected");
   }
+
+  // Swipe indicators
+  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Down arrow
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Left arrow
 }
 
 void loop() {
