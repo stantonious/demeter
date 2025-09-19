@@ -272,6 +272,7 @@ void drawPlot() {
     int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
     M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
   }
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow
 }
 
 void drawLabels(float n, float k, float p) {
@@ -298,6 +299,7 @@ void drawBitmapView() {
   M5.Display.setTextSize(2);
   M5.Display.println("Bitmap View");
   M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow
 }
 
 void drawControlView() {
@@ -319,4 +321,7 @@ void drawControlView() {
   M5.Display.setCursor(10, 60);
   M5.Display.setTextSize(2);
   M5.Display.print(suggestionText);
+
+  // Swipe indicator
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
 }
