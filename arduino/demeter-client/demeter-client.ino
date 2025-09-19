@@ -262,7 +262,7 @@ void drawPlot() {
     int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
     M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
   }
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow
+  M5.Display.fillTriangle(20, 120, 10, 110, 10, 130, WHITE); // Right arrow
 }
 
 void drawLabels(float n, float k, float p) {
