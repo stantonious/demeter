@@ -1,37 +1,51 @@
-def generate_rgb565_checkerboard():
+from PIL import Image
+
+def generate_rgb565_from_image(image_path, output_path):
     width = 128
     height = 128
-    square_size = 8
 
-    # RGB565 colors
-    black = 0x0000
-    # For the other color, let's use M5Stack's own orange color for fun
-    # Orange: R=255, G=165, B=0
-    # R (5 bits): 255 >> 3 = 31
-    # G (6 bits): 165 >> 2 = 41
-    # B (5 bits): 0 >> 3 = 0
-    # orange = (31 << 11) | (41 << 5) | 0 = 0b1111110100100000 = 0xFD20
-    orange = 0xFD20
+    try:
+        image = Image.open(image_path)
+    except FileNotFoundError:
+        print(f"Error: Image file not found at {image_path}")
+        return
+
+    # Resize and crop the image to 128x128, focusing on the center
+    img_width, img_height = image.size
+    crop_size = min(img_width, img_height)
+    left = (img_width - crop_size) // 2
+    top = (img_height - crop_size) // 2
+    right = (img_width + crop_size) // 2
+    bottom = (img_height + crop_size) // 2
+    image = image.crop((left, top, right, bottom))
+    image = image.resize((width, height))
+
+    # Convert to RGB if it's not already
+    image = image.convert("RGB")
 
     bitmap = []
     for y in range(height):
         for x in range(width):
-            color = black
-            if (x // square_size) % 2 == (y // square_size) % 2:
-                color = black
-            else:
-                color = orange
+            r, g, b = image.getpixel((x, y))
+
+            # Convert to RGB565
+            r5 = (r >> 3) & 0x1F
+            g6 = (g >> 2) & 0x3F
+            b5 = (b >> 3) & 0x1F
+
+            color = (r5 << 11) | (g6 << 5) | b5
             bitmap.append(color)
 
-    # Format as a C array
-    print("const uint16_t myBitmap[] PROGMEM = {")
-    for i, color in enumerate(bitmap):
-        if i % 16 == 0:
-            print("  ", end="")
-        print(f"0x{color:04x}, ", end="")
-        if (i + 1) % 16 == 0:
-            print()
-    print("};")
+    with open(output_path, "w") as f:
+        f.write("const uint16_t myBitmap[] PROGMEM = {\n")
+        for i, color in enumerate(bitmap):
+            if i % 16 == 0:
+                f.write("  ")
+            f.write(f"0x{color:04x}, ")
+            if (i + 1) % 16 == 0:
+                f.write("\n")
+        f.write("\n};")
 
 if __name__ == "__main__":
-    generate_rgb565_checkerboard()
+    generate_rgb565_from_image("daisy.jpg", "arduino/demeter-client/bitmap_data.h")
+    print("Bitmap data successfully generated and written to arduino/demeter-client/bitmap_data.h")
