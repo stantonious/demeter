@@ -47,7 +47,7 @@ void handleTouch() {
             currentView = PLOT;
           }
         } else if (currentView == PLOT) {
-          if (dx > 0) { // Swipe right
+          if (dx < 0) { // Swipe left
             currentView = HOME;
           }
         }
@@ -59,15 +59,16 @@ void handleTouch() {
             currentView = CONTROL;
           }
         } else if (currentView == BITMAP) {
-          if (dy > 0) { // Swipe down
+          if (dy < 0) { // Swipe up
             currentView = HOME;
           }
         } else if (currentView == CONTROL) {
-          if (dy < 0) { // Swipe up
+          if (dy > 0) { // Swipe down
             currentView = HOME;
           }
         }
       } else { // Button press
+        // --- App-specific buttons
         if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
           if (connected) {
             peripheral.disconnect();
@@ -88,6 +89,19 @@ void handleTouch() {
             suggestionText = "";
             drawControlView();
           }
+        }
+
+        // --- Navigation buttons
+        if (currentView == HOME) {
+          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = BITMAP; } // Up
+          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = CONTROL; } // Down
+          else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
+        } else if (currentView == PLOT) {
+          if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
+        } else if (currentView == BITMAP) {
+          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = HOME; } // Up
+        } else if (currentView == CONTROL) {
+          if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = HOME; } // Down
         }
       }
     }
@@ -120,22 +134,20 @@ void drawHomeView() {
   M5.Display.setTextSize(2);
 
   // Draw Connect/Disconnect Button
-  M5.Display.drawRect(110, 100, 120, 40, WHITE);
-  M5.Display.setCursor(120, 112);
-  if (connected) {
-    M5.Display.print("Disconnect");
-  } else {
-    M5.Display.print("Connect");
-  }
+  M5.Display.fillRoundRect(110, 100, 120, 40, 10, BLUE);
+  M5.Display.setTextColor(WHITE);
+  const char* txt = connected ? "Disconnect" : "Connect";
+  // The button is at (110, 100) with size 120x40, so center is (170, 120)
+  M5.Display.drawCenterString(txt, 170, 120);
 
   // Draw Status LED
   int ledColor = connected ? GREEN : RED;
   M5.Display.fillCircle(280, 20, 10, ledColor);
 
   // Swipe indicators
-  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Down arrow
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Left arrow
+  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);       // Up arrow (to BITMAP)
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE);    // Down arrow (to CONTROL)
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow (for left swipe to PLOT)
 }
 
 void loop() {
@@ -154,8 +166,7 @@ void loop() {
           drawPlot();
           drawLabels(lastN, lastK, lastP);
         } else {
-          M5.Display.setCursor(10, 10);
-          M5.Display.println("Plot View - Disconnected");
+          // Display nothing when disconnected, matching other views
         }
         break;
       case BITMAP:
@@ -262,7 +273,7 @@ void drawPlot() {
     int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
     M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
   }
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow
+  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow
 }
 
 void drawLabels(float n, float k, float p) {
@@ -285,19 +296,15 @@ void drawLabels(float n, float k, float p) {
 
 void drawBitmapView() {
   M5.Display.fillScreen(BLACK);
-  M5.Display.setCursor(10, 10);
-  M5.Display.setTextSize(2);
-  M5.Display.println("Bitmap View");
   M5.Display.pushImage(96, 56, 128, 128, myBitmap);
 
-   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);
+   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Up arrow (to HOME)
 }
 
 void drawControlView() {
   M5.Display.fillScreen(BLACK);
   M5.Display.setCursor(10, 10);
   M5.Display.setTextSize(2);
-  M5.Display.println("Control Panel");
 
   // Draw Suggest Button
   M5.Display.drawRect(20, 200, 100, 40, WHITE);
@@ -314,6 +321,6 @@ void drawControlView() {
   M5.Display.print(suggestionText);
 
   // Swipe indicator
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Up arrow
+  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)
   
 }
