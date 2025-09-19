@@ -17,8 +17,9 @@ float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
 int ledColor = DARKGREY;
-bool disconnecting = false;
 float lastN = 0, lastK = 0, lastP = 0;
+unsigned long lastHeartbeatTime = 0;
+bool homeViewDirty = false;
 
 // Touch gesture state
 int touch_x = -1;
@@ -75,11 +76,13 @@ void handleTouch() {
         // --- App-specific buttons
         if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
           if (connected) {
-            disconnecting = true;
             peripheral.disconnect();
+            connected = false;
+            ledColor = DARKGREY;
+            homeViewDirty = true;
           } else {
             ledColor = YELLOW;
-            drawHomeView();
+            homeViewDirty = true;
             startBleScan();
           }
         } else if (currentView == CONTROL) {
@@ -208,31 +211,59 @@ void loop() {
         if (peripheral.discoverAttributes()) {
           ledColor = GREEN;
           setupCharacteristics();
-          drawHomeView(); // Update view after connecting
+          homeViewDirty = true; // Update view after connecting
         } else {
           Serial.println("Failed to discover attributes");
           ledColor = RED;
-          drawHomeView();
+          homeViewDirty = true;
           BLE.scan();
         }
       } else {
         Serial.println("Connection failed");
         ledColor = RED;
-        drawHomeView();
+        homeViewDirty = true;
         BLE.scan();
+      }
+    }
+  }
+
+  // Heartbeat logic
+  if (connected) {
+    if (millis() - lastHeartbeatTime > 1000) {
+      lastHeartbeatTime = millis();
+      bool heartbeat_ok = false; // Assume failed until proven otherwise
+      if (suggestChar && suggestChar.canRead()) {
+        byte buffer[4];
+        unsigned long read_start = millis();
+        int len = suggestChar.readValue(buffer, 4);
+        unsigned long read_end = millis();
+        if (len > 0 && (read_end - read_start) <= 1000) {
+          heartbeat_ok = true;
+        }
+      }
+
+      // If the heartbeat is ok, the light is green, otherwise it's yellow.
+      // This overrides the "connecting" yellow, which is fine because this only runs when connected.
+      int newLedColor = heartbeat_ok ? GREEN : YELLOW;
+
+      if (newLedColor != ledColor) {
+        ledColor = newLedColor;
+        if (currentView == HOME) {
+          homeViewDirty = true;
+        }
       }
     }
   }
 
   if (connected && !peripheral.connected()) {
       connected = false;
-      if (disconnecting) {
-        ledColor = DARKGREY;
-        disconnecting = false;
-      } else {
-        ledColor = RED;
-      }
-      drawHomeView();
+      ledColor = RED;
+      homeViewDirty = true;
+  }
+
+  if (homeViewDirty && currentView == HOME) {
+    drawHomeView();
+    homeViewDirty = false;
   }
 
   delay(100);
