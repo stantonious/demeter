@@ -32,6 +32,7 @@ void handleTouch() {
   if (detail.wasPressed()) {
     touch_x = detail.x;
     touch_y = detail.y;
+    Serial.printf("touched %i %i\n",touch_x,touch_y);
   } else if (detail.wasReleased()) {
     if (touch_x != -1) {
       int dx = detail.x - touch_x;
@@ -53,6 +54,7 @@ void handleTouch() {
   }
 }
 
+bool scanning = false;
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
@@ -66,6 +68,7 @@ void setup() {
 
 void startBleScan() {
   if (!connected) {
+    scanning = true;
     BLE.scan();
   }
 }
@@ -85,7 +88,7 @@ void drawHomeView() {
 
   // Status message
   M5.Display.setCursor(10, 220);
-  if (BLE.isScanning()) {
+  if (scanning) {
     M5.Display.print("Scanning...");
   } else if (connected) {
     M5.Display.print("Connected");
@@ -124,8 +127,10 @@ void loop() {
   // BLE connection logic
   if (!connected) {
     BLEDevice device = BLE.available();
+    Serial.printf("device %s\n",device.address().c_str());
     if (device && device.address() == demeter_mac) {
       BLE.stopScan();
+      scanning = false;
       if (device.connect()) {
         peripheral = device;
         connected = true;
