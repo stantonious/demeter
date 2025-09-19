@@ -276,6 +276,25 @@ class PChar(dbus.service.Object):
 
 
 current_llm_response = ""
+is_generating = False
+
+def generate_llm_response(prompt):
+    global current_llm_response, is_generating
+    if is_generating:
+        return
+
+    is_generating = True
+    print('starting ollama req in background')
+    try:
+        current_llm_response = "Generating..."
+        response = generate('tinyllama', prompt).response
+        current_llm_response = response
+        print('got ollama res in background:', current_llm_response)
+    except Exception as e:
+        print(f"Error in ollama generation: {e}")
+        current_llm_response = "Error generating response."
+    finally:
+        is_generating = False
 
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -314,11 +333,14 @@ class IntWritableChar(dbus.service.Object):
             self.value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {self.value}")
             if self.value == 1:
-                print ('sending ollama req')
-                llm_prompt = f'Suggest a plant name that will thrive in soil conditions that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus.  Provide a succinct response.  '
-                global current_llm_response
-                current_llm_response = generate('tinyllama',llm_prompt).response
-                print ('got ollama res',current_llm_response)
+                if not is_generating:
+                    print ('sending ollama req')
+                    llm_prompt = f'Suggest a plant name that will thrive in soil conditions that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus.  Provide a succinct response.  '
+                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,))
+                    thread.daemon = True
+                    thread.start()
+                else:
+                    print("Generation already in progress, ignoring new request.")
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
