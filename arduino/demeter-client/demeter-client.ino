@@ -89,12 +89,10 @@ void handleTouch() {
           if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
             if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
               int32_t value_to_write = 1;
+              Serial.printf("writing ...\n");
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               Serial.printf("sending suggest\n");              
               delay(100); // Give server a moment to process
-
-              
-
               drawControlView();
             }
           } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
@@ -111,8 +109,8 @@ void handleTouch() {
 
         // --- Navigation buttons
         if (currentView == HOME) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = BITMAP; } // Up
-          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = CONTROL; } // Down
+          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
+          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
           else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
         } else if (currentView == PLOT) {
           if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
@@ -375,7 +373,7 @@ void drawControlView() {
   M5.Display.print("Refresh");
 
   M5.Display.setCursor(10, 0);
-  M5.Display.setTextSize(1);
+  M5.Display.setTextSize(1.5);
   M5.Display.print(suggestionText);
   Serial.printf("print text %s\n",suggestionText.c_str());
 
