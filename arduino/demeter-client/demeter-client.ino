@@ -11,9 +11,10 @@ const char* uuidLlm = "12345678-1234-5678-1234-56789abcdef6";
 const char* uuidPh = "12345678-1234-5678-1234-56789abcdef7";
 const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
 const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
+const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
@@ -96,43 +97,13 @@ void handleTouch() {
             startBleScan();
           }
         } else if (currentView == CONTROL) {
-          if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
+          // Suggest button is now the only button on this view
+          if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) {
             if (suggestChar && suggestChar.canWrite()) {
               int32_t value_to_write = 0; // 0 triggers LLM generation
               Serial.println("Writing 0 to suggestChar to trigger LLM...");
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
-              suggestionText = "Generating...";
-              drawControlView();
-            }
-          } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Refresh button
-            if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
-              suggestionText = "";
-              byte buffer[226]; // 225 bytes for data + 1 for null terminator
-              int32_t offset;
-              int length;
-
-              // Read first chunk
-              offset = 1;
-              suggestChar.writeValue((byte*)&offset, sizeof(offset));
-              delay(100);
-              length = llmChar.readValue(buffer, 225);
-              if (length > 0) {
-                buffer[length] = '\0';
-                suggestionText += String((char*)buffer);
-              }
-
-              // Read second chunk
-              offset = 226;
-              suggestChar.writeValue((byte*)&offset, sizeof(offset));
-              delay(100);
-              length = llmChar.readValue(buffer, 225);
-              if (length > 0) {
-                buffer[length] = '\0';
-                suggestionText += String((char*)buffer);
-              }
-
-              Serial.printf("Received response: %s\n", suggestionText.c_str());
-              drawControlView();
+              // The notification handler will update the text to "Generating..."
             }
           }
         }
@@ -230,6 +201,20 @@ void loop() {
 
   if ((currentView == PLOT || currentView == STATUS_V) && connected) {
     handleBLEData();
+  }
+
+  if (llmStatusChar && llmStatusChar.valueUpdated()) {
+    byte status;
+    llmStatusChar.readValue(&status, 1);
+    Serial.printf("LLM Status updated: %d\n", status);
+    if (status == 1) { // Generating
+      suggestionText = "Generating...";
+      if (currentView == CONTROL) {
+        drawControlView();
+      }
+    } else if (status == 2) { // Ready
+      fetchLlmResponse();
+    }
   }
 
   // BLE connection logic
@@ -382,6 +367,12 @@ void setupCharacteristics() {
     sunChar.subscribe();
     Serial.println("Subscribed to Sun");
   }
+
+  llmStatusChar = peripheral.characteristic(uuidLlmStatus);
+  if (llmStatusChar && llmStatusChar.canSubscribe()) {
+    llmStatusChar.subscribe();
+    Serial.println("Subscribed to LlmStatus");
+  }
 }
 
 void drawPlot() {
@@ -445,11 +436,6 @@ void drawControlView() {
   M5.Display.setCursor(30, 212);
   M5.Display.print("Suggest");
 
-  // Draw Clear Button
-  M5.Display.drawRect(200, 200, 100, 40, WHITE);
-  M5.Display.setCursor(210, 212);
-  M5.Display.print("Refresh");
-
   M5.Display.setCursor(10, 0);
   M5.Display.setTextSize(1.5);
   M5.Display.print(suggestionText);
@@ -458,6 +444,40 @@ void drawControlView() {
   // Swipe indicator
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)
   
+}
+
+void fetchLlmResponse() {
+  if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
+    suggestionText = "";
+    byte buffer[226]; // 225 bytes for data + 1 for null terminator
+    int32_t offset;
+    int length;
+
+    // Read first chunk
+    offset = 1;
+    suggestChar.writeValue((byte*)&offset, sizeof(offset));
+    delay(100);
+    length = llmChar.readValue(buffer, 225);
+    if (length > 0) {
+      buffer[length] = '\0';
+      suggestionText += String((char*)buffer);
+    }
+
+    // Read second chunk
+    offset = 226;
+    suggestChar.writeValue((byte*)&offset, sizeof(offset));
+    delay(100);
+    length = llmChar.readValue(buffer, 225);
+    if (length > 0) {
+      buffer[length] = '\0';
+      suggestionText += String((char*)buffer);
+    }
+
+    Serial.printf("Received response: %s\n", suggestionText.c_str());
+    if (currentView == CONTROL) {
+      drawControlView();
+    }
+  }
 }
 
 void drawStatusView() {

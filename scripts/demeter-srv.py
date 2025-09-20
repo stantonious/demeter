@@ -457,12 +457,13 @@ def update_generating_status(start_time):
         current_llm_response = f"Generating... {elapsed}s"
         time.sleep(1)
 
-def generate_llm_response(prompt):
+def generate_llm_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
         return
 
     is_generating = True
+    llm_status_char.set_status(1) # Generating
     print('starting ollama req in background')
     start_time = time.time()
 
@@ -479,6 +480,7 @@ def generate_llm_response(prompt):
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
+        llm_status_char.set_status(2) # Ready
 
 plant_type = 'ground cover' #'shrub'
 location_lat="39.5186"
@@ -519,7 +521,9 @@ class IntWritableChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        # Unpack 4-byte little-endian integer
+        # This characteristic is now only used to trigger generation.
+        # The llm_status_char will be used for notifications.
+        # It is passed in the constructor.
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {written_value}")
@@ -533,7 +537,8 @@ class IntWritableChar(dbus.service.Object):
                       f'longitude {location_lon} and will get {sun_amount} hours of sun per day with relative humidity of '\
                       f'{relative_humidity_level}% and soil moisture level is {soil_moister_level}.'
                     print ('sending ollama req',llm_prompt)
-                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,))
+                    # Pass the llm_status_char to the thread
+                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,self.service.llm_status_char))
                     thread.daemon = True
                     thread.start()
                 else:
@@ -543,6 +548,53 @@ class IntWritableChar(dbus.service.Object):
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
+
+class LlmStatusChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.status = 0  # 0: idle, 1: generating, 2: ready
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    def set_status(self, status):
+        if status != self.status:
+            self.status = status
+            if self.notifying:
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {"Value": [dbus.Byte(self.status)]}, [])
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [dbus.Byte(self.status)]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
 
 class StringChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service, suggest_char):
@@ -588,6 +640,7 @@ class Service(dbus.service.Object):
         self.uuid = uuid
         self.primary = primary
         self.characteristics = []
+        self.llm_status_char = None
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -726,6 +779,10 @@ def main():
     sun_char = SunChar(bus, 8,
     "12345678-1234-5678-1234-56789abcdef9", ["read", "notify"], service)
     service.characteristics.append(sun_char)
+    llm_status_char = LlmStatusChar(bus, 9,
+    "12345678-1234-5678-1234-56789abcdeff", ["read", "notify"], service)
+    service.characteristics.append(llm_status_char)
+    service.llm_status_char = llm_status_char
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
