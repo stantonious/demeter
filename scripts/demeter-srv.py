@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/bstaley/venv/demeter/bin/python
 
 import dbus
 import dbus.mainloop.glib
@@ -299,7 +299,7 @@ def generate_llm_response(prompt):
     counter_thread.start()
 
     try:
-        response = generate('tinyllama', prompt).response
+        response = generate('tinyllama', prompt,options={'num_predict':40}).response
         current_llm_response = response
         print('got ollama res in background:', current_llm_response)
     except Exception as e:
@@ -308,7 +308,7 @@ def generate_llm_response(prompt):
     finally:
         is_generating = False
 
-plant_type = 'shrub'
+plant_type = 'ground cover' #'shrub'
 location_lat="39.5186"
 location_lon="-104.7614"
 sun_amount = "6"
@@ -353,7 +353,7 @@ class IntWritableChar(dbus.service.Object):
             print(f"Set integer value to: {self.value}")
             if self.value == 1:
                 if not is_generating:
-                    llm_prompt = f'Answer the following question in a single, short sentence.  ' \
+                    llm_prompt = f'Provide the plant name only for the following question.  ' \
                     f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
                       f'that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus '\
                       f'and a pH level of {ph_level} and is located at latitude {location_lat} and '\

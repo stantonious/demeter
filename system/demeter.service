@@ -1,0 +1,13 @@
+[Unit]
+Description=Demeter sensors server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bstaley/
+ExecStart=/home/bstaley/git/demeter/scripts/demeter-srv.py
+Restart=on-failure
+User=bstaley
+
+[Install]
+WantedBy=multi-user.target

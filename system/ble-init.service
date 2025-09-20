@@ -1,0 +1,12 @@
+
+[Unit]
+Description=Bluetooth Initialization
+After=bluetooth.target
+
+[Service]
+ExecStart=/usr/local/bin/ble-init.sh
+Type=oneshot
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
