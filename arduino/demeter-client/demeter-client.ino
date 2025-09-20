@@ -16,7 +16,10 @@ const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
+int ledColor = DARKGREY;
 float lastN = 0, lastK = 0, lastP = 0;
+unsigned long lastHeartbeatTime = 0;
+bool homeViewDirty = false;
 
 // Touch gesture state
 int touch_x = -1;
@@ -75,20 +78,21 @@ void handleTouch() {
           if (connected) {
             peripheral.disconnect();
             connected = false;
-            drawHomeView();
+            ledColor = DARKGREY;
+            homeViewDirty = true;
           } else {
+            ledColor = YELLOW;
+            homeViewDirty = true;
             startBleScan();
           }
         } else if (currentView == CONTROL) {
           if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
             if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
               int32_t value_to_write = 1;
+              Serial.printf("writing ...\n");
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               Serial.printf("sending suggest\n");              
               delay(100); // Give server a moment to process
-
-              
-
               drawControlView();
             }
           } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
@@ -105,8 +109,8 @@ void handleTouch() {
 
         // --- Navigation buttons
         if (currentView == HOME) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = BITMAP; } // Up
-          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = CONTROL; } // Down
+          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
+          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
           else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
         } else if (currentView == PLOT) {
           if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
@@ -153,7 +157,6 @@ void drawHomeView() {
   M5.Display.drawCenterString(txt, 170, 120);
 
   // Draw Status LED
-  int ledColor = connected ? GREEN : RED;
   M5.Display.fillCircle(280, 20, 10, ledColor);
 
   // Swipe indicators
@@ -204,22 +207,61 @@ void loop() {
         peripheral = device;
         connected = true;
         if (peripheral.discoverAttributes()) {
+          ledColor = GREEN;
           setupCharacteristics();
-          drawHomeView(); // Update view after connecting
+          homeViewDirty = true; // Update view after connecting
         } else {
           Serial.println("Failed to discover attributes");
+          ledColor = RED;
+          homeViewDirty = true;
           BLE.scan();
         }
       } else {
         Serial.println("Connection failed");
+        ledColor = RED;
+        homeViewDirty = true;
         BLE.scan();
+      }
+    }
+  }
+
+  // Heartbeat logic
+  if (connected) {
+    if (millis() - lastHeartbeatTime > 1000) {
+      lastHeartbeatTime = millis();
+      bool heartbeat_ok = false; // Assume failed until proven otherwise
+      if (suggestChar && suggestChar.canRead()) {
+        byte buffer[4];
+        unsigned long read_start = millis();
+        int len = suggestChar.readValue(buffer, 4);
+        unsigned long read_end = millis();
+        if (len > 0 && (read_end - read_start) <= 1000) {
+          heartbeat_ok = true;
+        }
+      }
+
+      // If the heartbeat is ok, the light is green, otherwise it's yellow.
+      // This overrides the "connecting" yellow, which is fine because this only runs when connected.
+      int newLedColor = heartbeat_ok ? GREEN : YELLOW;
+
+      if (newLedColor != ledColor) {
+        ledColor = newLedColor;
+        if (currentView == HOME) {
+          homeViewDirty = true;
+        }
       }
     }
   }
 
   if (connected && !peripheral.connected()) {
       connected = false;
-      drawHomeView();
+      ledColor = RED;
+      homeViewDirty = true;
+  }
+
+  if (homeViewDirty && currentView == HOME) {
+    drawHomeView();
+    homeViewDirty = false;
   }
 
   delay(100);
@@ -331,7 +373,7 @@ void drawControlView() {
   M5.Display.print("Refresh");
 
   M5.Display.setCursor(10, 0);
-  M5.Display.setTextSize(1);
+  M5.Display.setTextSize(1.5);
   M5.Display.print(suggestionText);
   Serial.printf("print text %s\n",suggestionText.c_str());
 

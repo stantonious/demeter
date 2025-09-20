@@ -276,7 +276,45 @@ class PChar(dbus.service.Object):
 
 
 current_llm_response = ""
+is_generating = False
 
+def update_generating_status(start_time):
+    global current_llm_response
+    while is_generating:
+        elapsed = int(time.time() - start_time)
+        current_llm_response = f"Generating... {elapsed}s"
+        time.sleep(1)
+
+def generate_llm_response(prompt):
+    global current_llm_response, is_generating
+    if is_generating:
+        return
+
+    is_generating = True
+    print('starting ollama req in background')
+    start_time = time.time()
+
+    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,))
+    counter_thread.daemon = True
+    counter_thread.start()
+
+    try:
+        response = generate('tinyllama', prompt).response
+        current_llm_response = response
+        print('got ollama res in background:', current_llm_response)
+    except Exception as e:
+        print(f"Error in ollama generation: {e}")
+        current_llm_response = "Error generating response."
+    finally:
+        is_generating = False
+
+plant_type = 'shrub'
+location_lat="39.5186"
+location_lon="-104.7614"
+sun_amount = "6"
+ph_level="7."
+soil_moister_level = "semi-dry"
+relative_humidity_level = "19" #percent
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -314,11 +352,19 @@ class IntWritableChar(dbus.service.Object):
             self.value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {self.value}")
             if self.value == 1:
-                print ('sending ollama req')
-                llm_prompt = f'Suggest a plant name that will thrive in soil conditions that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus.  Provide a succinct response.  '
-                global current_llm_response
-                current_llm_response = generate('tinyllama',llm_prompt).response
-                print ('got ollama res',current_llm_response)
+                if not is_generating:
+                    llm_prompt = f'Answer the following question in a single, short sentence.  ' \
+                    f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
+                      f'that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus '\
+                      f'and a pH level of {ph_level} and is located at latitude {location_lat} and '\
+                      f'longitude {location_lon} and will get {sun_amount} hours of sun per day with relative humidity of '\
+                      f'{relative_humidity_level}% and soil moisture level is {soil_moister_level}.'
+                    print ('sending ollama req',llm_prompt)
+                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,))
+                    thread.daemon = True
+                    thread.start()
+                else:
+                    print("Generation already in progress, ignoring new request.")
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
