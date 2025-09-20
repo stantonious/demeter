@@ -122,6 +122,7 @@ void handleTouch() {
           if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
           else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
           else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
+          else if (detail.x < 40 && detail.y > 100 && detail.y < 140) { currentView = STATUS; } // Tap on left arrow
         } else if (currentView == PLOT) {
           if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
         } else if (currentView == BITMAP) {
@@ -173,7 +174,7 @@ void drawHomeView() {
   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);       // Up arrow (to BITMAP)
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE);    // Down arrow (to CONTROL)
   M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow (for left swipe to PLOT)
-  M5.Display.fillTriangle(20, 120, 10, 110, 10, 130, WHITE); // Left arrow (for right swipe to STATUS)
+  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow (for right swipe or tap to STATUS)
 }
 
 void loop() {
