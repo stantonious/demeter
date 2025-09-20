@@ -37,6 +37,9 @@ sensor_val = 0
 pot_val = 0.
 nit_val = 0.
 phr_val = 0.
+ph_val = 7.0
+humid_val = 50.0
+sun_val = 8.0
 
 
 def sensor_task():
@@ -99,6 +102,175 @@ class Characteristic(dbus.service.Object):
         print ('notif')
         self.PropertiesChanged("org.bluez.GattCharacteristic1",
                                {"Value": [(sensor_val + 1) % 255]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+
+class PhChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 7.0  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = ph_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class HumidChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 50.0  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = humid_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class SunChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 8.0  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = sun_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
         return True
 
     @dbus.service.signal("org.freedesktop.DBus.Properties",
@@ -535,6 +707,15 @@ def main():
     llm_response_char = StringChar(bus, 5,
     "12345678-1234-5678-1234-56789abcdef6", ["read"], service)
     service.characteristics.append(llm_response_char)
+    ph_char = PhChar(bus, 6,
+    "12345678-1234-5678-1234-56789abcdef7", ["read", "notify"], service)
+    service.characteristics.append(ph_char)
+    humid_char = HumidChar(bus, 7,
+    "12345678-1234-5678-1234-56789abcdef8", ["read", "notify"], service)
+    service.characteristics.append(humid_char)
+    sun_char = SunChar(bus, 8,
+    "12345678-1234-5678-1234-56789abcdef9", ["read", "notify"], service)
+    service.characteristics.append(sun_char)
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
