@@ -173,6 +173,7 @@ void drawHomeView() {
   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);       // Up arrow (to BITMAP)
   M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE);    // Down arrow (to CONTROL)
   M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow (for left swipe to PLOT)
+  M5.Display.fillTriangle(20, 120, 10, 110, 10, 130, WHITE); // Left arrow (for right swipe to STATUS)
 }
 
 void loop() {
@@ -476,6 +477,6 @@ void drawStatusView() {
   M5.Display.printf("hr");
 
 
-  // Left arrow to go back to HOME
-  M5.Display.fillTriangle(20, 120, 10, 110, 10, 130, WHITE);
+  // Right arrow to go back to HOME
+  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE);
 }
