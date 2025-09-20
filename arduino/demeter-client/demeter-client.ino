@@ -28,7 +28,7 @@ bool homeViewDirty = false;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT, BITMAP, CONTROL, STATUS };
+enum View { HOME, PLOT, BITMAP, CONTROL, STATUS_V };
 #include "bitmap_data.h"
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
@@ -55,13 +55,13 @@ void handleTouch() {
           if (dx < 0) { // Swipe left
             currentView = PLOT;
           } else { // Swipe right
-            currentView = STATUS;
+            currentView = STATUS_V;
           }
         } else if (currentView == PLOT) {
           if (dx > 0) { // Swipe right
             currentView = HOME;
           }
-        } else if (currentView == STATUS) {
+        } else if (currentView == STATUS_V) {
             if (dx < 0) { // Swipe left
                 currentView = HOME;
             }
@@ -122,7 +122,7 @@ void handleTouch() {
           if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
           else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
           else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
-          else if (detail.x < 40 && detail.y > 100 && detail.y < 140) { currentView = STATUS; } // Tap on left arrow
+          else if (detail.x < 40 && detail.y > 100 && detail.y < 140) { currentView = STATUS_V; } // Tap on left arrow
         } else if (currentView == PLOT) {
           if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
         } else if (currentView == BITMAP) {
@@ -202,13 +202,13 @@ void loop() {
       case CONTROL:
         drawControlView();
         break;
-      case STATUS:
+      case STATUS_V:
         drawStatusView();
         break;
     }
   }
 
-  if ((currentView == PLOT || currentView == STATUS) && connected) {
+  if ((currentView == PLOT || currentView == STATUS_V) && connected) {
     handleBLEData();
   }
 
@@ -317,7 +317,7 @@ void handleBLEData() {
     if (currentView == PLOT) {
         drawPlot();
         drawLabels(lastN, lastK, lastP);
-    } else if (currentView == STATUS) {
+    } else if (currentView == STATUS_V) {
         drawStatusView();
     }
   }
