@@ -97,23 +97,43 @@ void handleTouch() {
           }
         } else if (currentView == CONTROL) {
           if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) { // Suggest button
-            if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
-              int32_t value_to_write = 1;
-              Serial.printf("writing ...\n");
+            if (suggestChar && suggestChar.canWrite()) {
+              int32_t value_to_write = 0; // 0 triggers LLM generation
+              Serial.println("Writing 0 to suggestChar to trigger LLM...");
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
-              Serial.printf("sending suggest\n");              
-              delay(100); // Give server a moment to process
+              suggestionText = "Generating...";
               drawControlView();
             }
-          } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Clear button
+          } else if (detail.x > 200 && detail.x < 300 && detail.y > 200 && detail.y < 240) { // Refresh button
+            if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
+              suggestionText = "";
+              byte buffer[226]; // 225 bytes for data + 1 for null terminator
+              int32_t offset;
+              int length;
 
-            byte buffer[1024];
-              int length = llmChar.readValue(buffer, sizeof(buffer));
-              Serial.printf("length %i\n",length);
-              buffer[length] = '\0';
-              suggestionText = String((char*)buffer);
-              Serial.printf("received response %s\n",suggestionText);
-            drawControlView();
+              // Read first chunk
+              offset = 1;
+              suggestChar.writeValue((byte*)&offset, sizeof(offset));
+              delay(100);
+              length = llmChar.readValue(buffer, 225);
+              if (length > 0) {
+                buffer[length] = '\0';
+                suggestionText += String((char*)buffer);
+              }
+
+              // Read second chunk
+              offset = 226;
+              suggestChar.writeValue((byte*)&offset, sizeof(offset));
+              delay(100);
+              length = llmChar.readValue(buffer, 225);
+              if (length > 0) {
+                buffer[length] = '\0';
+                suggestionText += String((char*)buffer);
+              }
+
+              Serial.printf("Received response: %s\n", suggestionText.c_str());
+              drawControlView();
+            }
           }
         }
 

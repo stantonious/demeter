@@ -521,9 +521,10 @@ class IntWritableChar(dbus.service.Object):
     def WriteValue(self, value, options):
         # Unpack 4-byte little-endian integer
         if len(value) == 4:
-            self.value = struct.unpack('<i', bytes(value))[0]
-            print(f"Set integer value to: {self.value}")
-            if self.value == 1:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set integer value to: {written_value}")
+            if written_value == 0:
+                self.value = 1 # set offset to 1
                 if not is_generating:
                     llm_prompt = f'Provide the plant name only for the following question.  ' \
                     f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
@@ -537,18 +538,20 @@ class IntWritableChar(dbus.service.Object):
                     thread.start()
                 else:
                     print("Generation already in progress, ignoring new request.")
+            else:
+                self.value = written_value
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
 
 class StringChar(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service):
+    def __init__(self, bus, index, uuid, flags, service, suggest_char):
         self.path = service.path + f"/char{index}"
         self.bus = bus
         self.uuid = uuid
         self.flags = flags
         self.service = service
-        self.value = "Initial LLM response"
+        self.suggest_char = suggest_char
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -566,9 +569,16 @@ class StringChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="a{sv}", out_signature="ay")
     def ReadValue(self, options):
-        truncated_value = current_llm_response[:512]
-        print('Reading llm response',truncated_value)
-        return [dbus.Byte(c) for c in truncated_value.encode('utf-8')]
+        offset = self.suggest_char.value
+        if offset > 0:
+            start_index = offset -1
+            end_index = start_index + 225
+            chunk = current_llm_response[start_index:end_index]
+            print(f"Reading llm response chunk (offset: {offset}): {chunk}")
+            return [dbus.Byte(c) for c in chunk.encode('utf-8')]
+        else:
+            # Return empty or some default if offset is not set
+            return []
 
 
 class Service(dbus.service.Object):
@@ -705,7 +715,7 @@ def main():
     "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
     service.characteristics.append(int_writable_char)
     llm_response_char = StringChar(bus, 5,
-    "12345678-1234-5678-1234-56789abcdef6", ["read"], service)
+    "12345678-1234-5678-1234-56789abcdef6", ["read"], service, int_writable_char)
     service.characteristics.append(llm_response_char)
     ph_char = PhChar(bus, 6,
     "12345678-1234-5678-1234-56789abcdef7", ["read", "notify"], service)
