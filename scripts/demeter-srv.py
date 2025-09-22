@@ -42,12 +42,6 @@ humid_val = 50.0
 sun_val = 8.0
 
 
-def sensor_task():
-    global sensor_val
-    while 1:
-        time.sleep(1)
-        sensor_val += 1
-
 class Characteristic(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -457,12 +451,27 @@ def update_generating_status(start_time):
         current_llm_response = f"Generating... {elapsed}s"
         time.sleep(1)
 
-def generate_llm_response(prompt):
+
+def generate_plant_prompt(
+    n_mgkg, p_mgkg, k_mgkg, ph, moisture, sunlight,
+    lat, lon, soil_type, plant_type, max_plants=3
+):
+    prompt = (
+        f"Suggest {max_plants} {plant_type} plants for location ({lat}, {lon}) with {soil_type} soil.\n"
+        f"Soil: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
+        f"Sunlight: {sunlight}.\n"
+        f"Reply in {max_plants} short bullet points only. No extra text. Use emojis."
+    )
+    return prompt
+
+ollama_model = 'tinyllama'
+def generate_llm_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
         return
 
     is_generating = True
+    llm_status_char.set_status(1) # Generating
     print('starting ollama req in background')
     start_time = time.time()
 
@@ -471,7 +480,8 @@ def generate_llm_response(prompt):
     counter_thread.start()
 
     try:
-        response = generate('tinyllama', prompt,options={'num_predict':40}).response
+        #response = generate(ollama_model, prompt,options={'num_predict':100}).response
+        response = generate(ollama_model, prompt).response
         current_llm_response = response
         print('got ollama res in background:', current_llm_response)
     except Exception as e:
@@ -479,6 +489,7 @@ def generate_llm_response(prompt):
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
+        llm_status_char.set_status(2) # Ready
 
 plant_type = 'ground cover' #'shrub'
 location_lat="39.5186"
@@ -519,36 +530,91 @@ class IntWritableChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        # Unpack 4-byte little-endian integer
+        # This characteristic is now only used to trigger generation.
+        # The llm_status_char will be used for notifications.
+        # It is passed in the constructor.
         if len(value) == 4:
-            self.value = struct.unpack('<i', bytes(value))[0]
-            print(f"Set integer value to: {self.value}")
-            if self.value == 1:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set integer value to: {written_value}")
+            if written_value == 0:
+                self.value = 1 # set offset to 1
                 if not is_generating:
+                    print ('generating')
                     llm_prompt = f'Provide the plant name only for the following question.  ' \
                     f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
                       f'that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus '\
                       f'and a pH level of {ph_level} and is located at latitude {location_lat} and '\
                       f'longitude {location_lon} and will get {sun_amount} hours of sun per day with relative humidity of '\
                       f'{relative_humidity_level}% and soil moisture level is {soil_moister_level}.'
+                    llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=plant_type,max_plants=1)
                     print ('sending ollama req',llm_prompt)
-                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,))
+                    # Pass the llm_status_char to the thread
+                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,self.service.llm_status_char))
                     thread.daemon = True
                     thread.start()
                 else:
                     print("Generation already in progress, ignoring new request.")
+            else:
+                self.value = written_value
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
 
-class StringChar(dbus.service.Object):
+class LlmStatusChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
         self.bus = bus
         self.uuid = uuid
         self.flags = flags
         self.service = service
-        self.value = "Initial LLM response"
+        self.notifying = False
+        self.status = 0  # 0: idle, 1: generating, 2: ready
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    def set_status(self, status):
+        if status != self.status:
+            self.status = status
+            if self.notifying:
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {"Value": [dbus.Byte(self.status)]}, [])
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [dbus.Byte(self.status)]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+class StringChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, suggest_char):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.suggest_char = suggest_char
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -566,9 +632,16 @@ class StringChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="a{sv}", out_signature="ay")
     def ReadValue(self, options):
-        truncated_value = current_llm_response[:512]
-        print('Reading llm response',truncated_value)
-        return [dbus.Byte(c) for c in truncated_value.encode('utf-8')]
+        offset = self.suggest_char.value
+        if offset > 0:
+            start_index = offset -1
+            end_index = start_index + 225
+            chunk = current_llm_response[start_index:end_index]
+            print(f"Reading llm response chunk (offset: {offset}): {chunk} total:{current_llm_response}")
+            return [dbus.Byte(c) for c in chunk.encode('utf-8')]
+        else:
+            # Return empty or some default if offset is not set
+            return []
 
 
 class Service(dbus.service.Object):
@@ -578,6 +651,7 @@ class Service(dbus.service.Object):
         self.uuid = uuid
         self.primary = primary
         self.characteristics = []
+        self.llm_status_char = None
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -649,7 +723,7 @@ class NpkSensor(threading.Thread):
 
     def read_npk(self):
         try:
-            with serial.Serial(PORT, BAUDRATE, timeout=1) as ser:
+            with serial.Serial(PORT, BAUDRATE, timeout=.1) as ser:
                 ser.flushInput()
 
                 # Enable transmit mode
@@ -661,8 +735,7 @@ class NpkSensor(threading.Thread):
 
                 # Switch to receive mode
                 GPIO.output(TX_ENABLE_PIN, GPIO.LOW)
-
-                time.sleep(0.01)
+                time.sleep(0.02)
                 response = ser.read(11)
                 self.parse_response(response)
 
@@ -673,7 +746,7 @@ class NpkSensor(threading.Thread):
     def duty_cycle(self):
         #print ('starting duty cycle')
         try:
-                self.read_npk()
+            self.read_npk()
         except Exception as e:
             GPIO.cleanup()
             raise e
@@ -705,7 +778,7 @@ def main():
     "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
     service.characteristics.append(int_writable_char)
     llm_response_char = StringChar(bus, 5,
-    "12345678-1234-5678-1234-56789abcdef6", ["read"], service)
+    "12345678-1234-5678-1234-56789abcdef6", ["read"], service, int_writable_char)
     service.characteristics.append(llm_response_char)
     ph_char = PhChar(bus, 6,
     "12345678-1234-5678-1234-56789abcdef7", ["read", "notify"], service)
@@ -716,6 +789,10 @@ def main():
     sun_char = SunChar(bus, 8,
     "12345678-1234-5678-1234-56789abcdef9", ["read", "notify"], service)
     service.characteristics.append(sun_char)
+    llm_status_char = LlmStatusChar(bus, 9,
+    "12345678-1234-5678-1234-56789abcdeff", ["read", "notify"], service)
+    service.characteristics.append(llm_status_char)
+    service.llm_status_char = llm_status_char
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
@@ -726,8 +803,6 @@ def main():
                                      reply_handler=lambda: print("GATT app registered"),
                                      error_handler=lambda e: print(f"Failed to register: {e}"))
 
-    t1 = threading.Thread(target=sensor_task,args=())
-    t1.start()
     npk = NpkSensor()
     npk.start()
     GLib.MainLoop().run()
