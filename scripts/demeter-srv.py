@@ -42,12 +42,6 @@ humid_val = 50.0
 sun_val = 8.0
 
 
-def sensor_task():
-    global sensor_val
-    while 1:
-        time.sleep(1)
-        sensor_val += 1
-
 class Characteristic(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -457,6 +451,20 @@ def update_generating_status(start_time):
         current_llm_response = f"Generating... {elapsed}s"
         time.sleep(1)
 
+
+def generate_plant_prompt(
+    n_mgkg, p_mgkg, k_mgkg, ph, moisture, sunlight,
+    lat, lon, soil_type, plant_type, max_plants=3
+):
+    prompt = (
+        f"Suggest {max_plants} {plant_type} plants for location ({lat}, {lon}) with {soil_type} soil.\n"
+        f"Soil: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
+        f"Sunlight: {sunlight}.\n"
+        f"Reply in {max_plants} short bullet points only. No extra text. Use emojis."
+    )
+    return prompt
+
+ollama_model = 'tinyllama'
 def generate_llm_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
@@ -472,7 +480,8 @@ def generate_llm_response(prompt, llm_status_char):
     counter_thread.start()
 
     try:
-        response = generate('tinyllama', prompt,options={'num_predict':40}).response
+        #response = generate(ollama_model, prompt,options={'num_predict':100}).response
+        response = generate(ollama_model, prompt).response
         current_llm_response = response
         print('got ollama res in background:', current_llm_response)
     except Exception as e:
@@ -530,12 +539,14 @@ class IntWritableChar(dbus.service.Object):
             if written_value == 0:
                 self.value = 1 # set offset to 1
                 if not is_generating:
+                    print ('generating')
                     llm_prompt = f'Provide the plant name only for the following question.  ' \
                     f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
                       f'that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus '\
                       f'and a pH level of {ph_level} and is located at latitude {location_lat} and '\
                       f'longitude {location_lon} and will get {sun_amount} hours of sun per day with relative humidity of '\
                       f'{relative_humidity_level}% and soil moisture level is {soil_moister_level}.'
+                    llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=plant_type,max_plants=1)
                     print ('sending ollama req',llm_prompt)
                     # Pass the llm_status_char to the thread
                     thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,self.service.llm_status_char))
@@ -626,7 +637,7 @@ class StringChar(dbus.service.Object):
             start_index = offset -1
             end_index = start_index + 225
             chunk = current_llm_response[start_index:end_index]
-            print(f"Reading llm response chunk (offset: {offset}): {chunk}")
+            print(f"Reading llm response chunk (offset: {offset}): {chunk} total:{current_llm_response}")
             return [dbus.Byte(c) for c in chunk.encode('utf-8')]
         else:
             # Return empty or some default if offset is not set
@@ -712,7 +723,7 @@ class NpkSensor(threading.Thread):
 
     def read_npk(self):
         try:
-            with serial.Serial(PORT, BAUDRATE, timeout=1) as ser:
+            with serial.Serial(PORT, BAUDRATE, timeout=.1) as ser:
                 ser.flushInput()
 
                 # Enable transmit mode
@@ -724,8 +735,7 @@ class NpkSensor(threading.Thread):
 
                 # Switch to receive mode
                 GPIO.output(TX_ENABLE_PIN, GPIO.LOW)
-
-                time.sleep(0.01)
+                time.sleep(0.02)
                 response = ser.read(11)
                 self.parse_response(response)
 
@@ -736,7 +746,7 @@ class NpkSensor(threading.Thread):
     def duty_cycle(self):
         #print ('starting duty cycle')
         try:
-                self.read_npk()
+            self.read_npk()
         except Exception as e:
             GPIO.cleanup()
             raise e
@@ -793,8 +803,6 @@ def main():
                                      reply_handler=lambda: print("GATT app registered"),
                                      error_handler=lambda e: print(f"Failed to register: {e}"))
 
-    t1 = threading.Thread(target=sensor_task,args=())
-    t1.start()
     npk = NpkSensor()
     npk.start()
     GLib.MainLoop().run()
