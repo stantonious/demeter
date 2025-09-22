@@ -13,6 +13,29 @@ const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
 const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 
+// UI Constants
+const uint16_t COLOR_BACKGROUND = BLACK;
+const uint16_t COLOR_TEXT = WHITE;
+const uint16_t COLOR_PRIMARY = BLUE;
+const uint16_t COLOR_SUCCESS = GREEN;
+const uint16_t COLOR_WARNING = YELLOW;
+const uint16_t COLOR_ERROR = RED;
+const uint16_t COLOR_MUTED = DARKGREY;
+
+const int BUTTON_WIDTH = 120;
+const int BUTTON_HEIGHT = 40;
+const int BUTTON_RADIUS = 10;
+const int BUTTON_X = 110;
+const int BUTTON_Y = 100;
+
+const int LED_X = 280;
+const int LED_Y = 20;
+const int LED_RADIUS = 10;
+const int LED_BORDER = 2;
+
+const int NAV_ARROW_SIZE = 10;
+const int NAV_ARROW_PADDING = 10;
+
 BLEDevice peripheral;
 BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar;
 
@@ -20,7 +43,7 @@ const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
-int ledColor = DARKGREY;
+uint16_t ledColor = COLOR_MUTED;
 float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0;
 unsigned long lastHeartbeatTime = 0;
 bool homeViewDirty = false;
@@ -30,7 +53,7 @@ int touch_x = -1;
 int touch_y = -1;
 
 enum View { HOME, PLOT, BITMAP, CONTROL, STATUS_V };
-#include "bitmap_data.h"
+// #include "bitmap_data.h" // No longer needed
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 String suggestionText = "";
@@ -70,35 +93,35 @@ void handleTouch() {
       } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
         if (currentView == HOME) {
           if (dy < 0) { // Swipe up
-            currentView = BITMAP;
-          } else { // Swipe down
             currentView = CONTROL;
+          } else { // Swipe down
+            currentView = BITMAP;
           }
         } else if (currentView == BITMAP) {
-          if (dy > 0) { // Swipe down
+          if (dy < 0) { // Swipe up
             currentView = HOME;
           }
         } else if (currentView == CONTROL) {
-          if (dy < 0) { // Swipe up
+          if (dy > 0) { // Swipe down
             currentView = HOME;
           }
         }
       } else { // Button press
         // --- App-specific buttons
-        if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
+        if (currentView == HOME && detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > BUTTON_Y && detail.y < BUTTON_Y + BUTTON_HEIGHT) {
           if (connected) {
             peripheral.disconnect();
             connected = false;
-            ledColor = DARKGREY;
+            ledColor = COLOR_MUTED;
             homeViewDirty = true;
           } else {
-            ledColor = YELLOW;
+            ledColor = COLOR_WARNING;
             homeViewDirty = true;
             startBleScan();
           }
         } else if (currentView == CONTROL) {
-          // Suggest button is now the only button on this view
-          if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) {
+          // Suggest button
+          if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 180 && detail.y < 220) {
             if (suggestChar && suggestChar.canWrite()) {
               int32_t value_to_write = 0; // 0 triggers LLM generation
               Serial.println("Writing 0 to suggestChar to trigger LLM...");
@@ -110,16 +133,16 @@ void handleTouch() {
 
         // --- Navigation buttons
         if (currentView == HOME) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
-          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
-          else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
-          else if (detail.x < 40 && detail.y > 100 && detail.y < 140) { currentView = STATUS_V; } // Tap on left arrow
+            if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = CONTROL; } // Up
+            else if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > M5.Display.height() - NAV_ARROW_PADDING * 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height()) { currentView = BITMAP; } // Down
+            else if (detail.x > M5.Display.width() - NAV_ARROW_SIZE * 2 - NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = PLOT; } // Right
+            else if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = STATUS_V; } // Left
         } else if (currentView == PLOT) {
-          if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
+            if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; } // Back to Home
         } else if (currentView == BITMAP) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = HOME; } // Up
+            if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > M5.Display.height() - NAV_ARROW_PADDING * 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height()) { currentView = HOME; } // Back to Home
         } else if (currentView == CONTROL) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = HOME; } // Down
+            if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = HOME; } // Back to Home
         }
       }
     }
@@ -157,24 +180,29 @@ void startBleScan() {
 }
 
 void drawHomeView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setTextSize(2);
+    M5.Display.fillScreen(COLOR_BACKGROUND);
+    M5.Display.setTextSize(2);
 
-  // Draw Connect/Disconnect Button
-  M5.Display.fillRoundRect(110, 100, 120, 40, 10, BLUE);
-  M5.Display.setTextColor(WHITE);
-  const char* txt = connected ? "Disconnect" : "Connect";
-  // The button is at (110, 100) with size 120x40, so center is (170, 120)
-  M5.Display.drawCenterString(txt, 170, 120);
+    // Draw Connect/Disconnect Button
+    uint16_t primaryColor = connected ? COLOR_ERROR : COLOR_SUCCESS;
+    uint16_t shadowColor = M5.Display.color565(50, 50, 50);
 
-  // Draw Status LED
-  M5.Display.fillCircle(280, 20, 10, ledColor);
+    M5.Display.fillRoundRect(BUTTON_X + 2, BUTTON_Y + 2, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, shadowColor); // Shadow
+    M5.Display.fillRoundRect(BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, primaryColor); // Main Button
+    M5.Display.setTextColor(COLOR_TEXT);
+    const char* txt = connected ? "Disconnect" : "Connect";
+    M5.Display.drawCenterString(txt, BUTTON_X + BUTTON_WIDTH / 2, BUTTON_Y + BUTTON_HEIGHT / 2);
 
-  // Swipe indicators
-  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);       // Up arrow (to BITMAP)
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE);    // Down arrow (to CONTROL)
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow (for left swipe to PLOT)
-  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow (for right swipe or tap to STATUS)
+    // Draw Status LED with a border
+    M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS + LED_BORDER, M5.Display.color565(80, 80, 80)); // Border
+    M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS, ledColor);
+
+    // Modern Swipe Indicators (Chevrons)
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);
+    M5.Display.drawString("v", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, M5.Display.height() - NAV_ARROW_SIZE - NAV_ARROW_PADDING);
+    M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }
 
 void loop() {
@@ -191,7 +219,7 @@ void loop() {
         M5.Display.fillScreen(BLACK);
         if (connected) {
           drawPlot();
-          drawLabels(lastN, lastK, lastP);
+          drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
         } else {
           // Display nothing when disconnected, matching other views
         }
@@ -388,101 +416,173 @@ void setupCharacteristics() {
 }
 
 void drawPlot() {
-  M5.Display.fillRect(0, 40, 320, 200, BLACK);
-  M5.Display.drawLine(10, 220, 310, 220, WHITE); // X-axis
-  M5.Display.drawLine(10, 60, 10, 220, WHITE);   // Y-axis
+    M5.Display.fillRect(0, 40, 320, 200, COLOR_BACKGROUND);
+    M5.Display.drawRect(10, 60, 300, 160, COLOR_TEXT); // Plot border
 
-  for (int i = 1; i < maxPoints; i++) {
-    int idx1 = (bufferIndex + i - 1) % maxPoints;
-    int idx2 = (bufferIndex + i) % maxPoints;
-    int x1 = 10 + i - 1;
-    int x2 = 10 + i;
+    // Define a modern color palette
+    uint16_t nColor = M5.Display.color565(3, 169, 244); // Light Blue
+    uint16_t kColor = M5.Display.color565(255, 152, 0); // Orange
+    uint16_t pColor = M5.Display.color565(76, 175, 80); // Green
+    uint16_t phColor = M5.Display.color565(244, 67, 54); // Red
+    uint16_t humidColor = M5.Display.color565(0, 188, 212); // Cyan
+    uint16_t sunColor = M5.Display.color565(255, 235, 59); // Yellow
 
-    int y1_n = map(nBuffer[idx1], 0, 100, 220, 60);
-    int y2_n = map(nBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_n, x2, y2_n, GREEN);
+    for (int i = 1; i < maxPoints; i++) {
+        int idx1 = (bufferIndex + i - 1) % maxPoints;
+        int idx2 = (bufferIndex + i) % maxPoints;
+        int x1 = 10 + (i - 1) * 2; // Stretch the plot
+        int x2 = 10 + i * 2;
 
-    int y1_k = map(kBuffer[idx1], 0, 100, 220, 60);
-    int y2_k = map(kBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_k, x2, y2_k, YELLOW);
+        // Draw thicker lines by drawing three adjacent lines
+        for (int j = -1; j <= 1; j++) {
+            int y1_n = map(nBuffer[idx1], 0, 100, 220, 60) + j;
+            int y2_n = map(nBuffer[idx2], 0, 100, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_n, x2, y2_n, nColor);
 
-    int y1_p = map(pBuffer[idx1], 0, 100, 220, 60);
-    int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
+            int y1_k = map(kBuffer[idx1], 0, 100, 220, 60) + j;
+            int y2_k = map(kBuffer[idx2], 0, 100, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_k, x2, y2_k, kColor);
 
-    int y1_ph = map(phBuffer[idx1], 0, 14, 220, 60);
-    int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60);
-    M5.Display.drawLine(x1, y1_ph, x2, y2_ph, RED);
+            int y1_p = map(pBuffer[idx1], 0, 100, 220, 60) + j;
+            int y2_p = map(pBuffer[idx2], 0, 100, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_p, x2, y2_p, pColor);
 
-    int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60);
-    int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_humid, x2, y2_humid, CYAN);
+            int y1_ph = map(phBuffer[idx1], 0, 14, 220, 60) + j;
+            int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_ph, x2, y2_ph, phColor);
 
-    int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60);
-    int y2_sun = map(sunBuffer[idx2], 0, 24, 220, 60);
-    M5.Display.drawLine(x1, y1_sun, x2, y2_sun, MAGENTA);
-  }
-  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow
+            int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60) + j;
+            int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_humid, x2, y2_humid, humidColor);
+
+            int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60) + j;
+            int y2_sun = map(sunBuffer[idx2], 0, 24, 220, 60) + j;
+            M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
+        }
+    }
+    M5.Display.drawString("<", 10, 115); // Back to Home
 }
 
 void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
-  M5.Display.fillRect(0, 0, 320, 40, BLACK);
+    M5.Display.fillRect(0, 0, 320, 40, COLOR_BACKGROUND);
+    M5.Display.setTextSize(1.5);
 
-  // Row 1
-  M5.Display.setCursor(10, 5);
-  M5.Display.setTextColor(GREEN);
-  M5.Display.printf("N: %.1f", n);
+    // Define colors to match the plot
+    uint16_t nColor = M5.Display.color565(3, 169, 244);
+    uint16_t pColor = M5.Display.color565(76, 175, 80);
+    uint16_t kColor = M5.Display.color565(255, 152, 0);
+    uint16_t phColor = M5.Display.color565(244, 67, 54);
+    uint16_t humidColor = M5.Display.color565(0, 188, 212);
+    uint16_t sunColor = M5.Display.color565(255, 235, 59);
 
-  M5.Display.setCursor(110, 5);
-  M5.Display.setTextColor(BLUE);
-  M5.Display.printf("P: %.1f", p);
+    // Row 1
+    M5.Display.setTextColor(nColor);
+    M5.Display.setCursor(10, 5);
+    M5.Display.printf("N: %.1f", n);
 
-  M5.Display.setCursor(210, 5);
-  M5.Display.setTextColor(YELLOW);
-  M5.Display.printf("K: %.1f", k);
+    M5.Display.setTextColor(pColor);
+    M5.Display.setCursor(110, 5);
+    M5.Display.printf("P: %.1f", p);
 
-  // Row 2
-  M5.Display.setCursor(10, 25);
-  M5.Display.setTextColor(RED);
-  M5.Display.printf("pH: %.1f", ph);
+    M5.Display.setTextColor(kColor);
+    M5.Display.setCursor(210, 5);
+    M5.Display.printf("K: %.1f", k);
 
-  M5.Display.setCursor(110, 25);
-  M5.Display.setTextColor(CYAN);
-  M5.Display.printf("Hum: %.1f", humid);
+    // Row 2
+    M5.Display.setTextColor(phColor);
+    M5.Display.setCursor(10, 25);
+    M5.Display.printf("pH: %.1f", ph);
 
-  M5.Display.setCursor(210, 25);
-  M5.Display.setTextColor(MAGENTA);
-  M5.Display.printf("Sun: %.1f", sun);
+    M5.Display.setTextColor(humidColor);
+    M5.Display.setCursor(110, 25);
+    M5.Display.printf("Hum: %.1f%%", humid);
 
+    M5.Display.setTextColor(sunColor);
+    M5.Display.setCursor(210, 25);
+    M5.Display.printf("Sun: %.1fhr", sun);
 
-  M5.Display.setTextColor(WHITE);  // Reset to default for other text
+    M5.Display.setTextColor(WHITE); // Reset color
+}
+
+void drawPlantIcon() {
+    int centerX = 160;
+    int baseY = 180; // Adjusted for centering
+    uint16_t stemColor = M5.Display.color565(139, 69, 19); // Brown
+    uint16_t leafColor = M5.Display.color565(34, 139, 34); // Forest Green
+
+    // Pot
+    M5.Display.fillRoundRect(centerX - 60, baseY, 120, 60, 10, stemColor);
+    M5.Display.fillRect(centerX - 70, baseY - 15, 140, 15, stemColor);
+
+    // Stem
+    M5.Display.fillRect(centerX - 10, baseY - 100, 20, 85, leafColor);
+
+    // Leaves
+    M5.Display.fillTriangle(centerX, baseY - 100, centerX - 60, baseY - 50, centerX, baseY - 20, leafColor);
+    M5.Display.fillTriangle(centerX, baseY - 100, centerX + 60, baseY - 50, centerX, baseY - 20, leafColor);
+    M5.Display.fillTriangle(centerX, baseY - 60, centerX - 50, baseY - 20, centerX, baseY, leafColor);
+    M5.Display.fillTriangle(centerX, baseY - 60, centerX + 50, baseY - 20, centerX, baseY, leafColor);
 }
 
 void drawBitmapView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+    M5.Display.fillScreen(BLACK);
+    drawPlantIcon();
 
-   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Up arrow (to HOME)
+    M5.Display.setTextColor(WHITE);
+    M5.Display.drawString("v", 155, 220); // Down arrow (to HOME)
 }
 
 void drawControlView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setCursor(10, 10);
-  M5.Display.setTextSize(2);
+    M5.Display.fillScreen(COLOR_BACKGROUND);
+    M5.Display.setTextSize(2);
 
-  // Draw Suggest Button
-  M5.Display.drawRect(20, 200, 100, 40, WHITE);
-  M5.Display.setCursor(30, 212);
-  M5.Display.print("Suggest");
+    // Draw Suggest Button
+    uint16_t primaryColor = M5.Display.color565(0, 150, 136); // Teal
+    uint16_t shadowColor = M5.Display.color565(50, 50, 50);
+    M5.Display.fillRoundRect(BUTTON_X + 2, 182, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, shadowColor); // Shadow
+    M5.Display.fillRoundRect(BUTTON_X, 180, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, primaryColor); // Main Button
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.drawCenterString("Suggest", BUTTON_X + BUTTON_WIDTH / 2, 200);
 
-  M5.Display.setCursor(10, 0);
-  M5.Display.setTextSize(1.5);
-  M5.Display.print(suggestionText);
-  Serial.printf("print text %s\n",suggestionText.c_str());
+    // Draw Text Area for Suggestion
+    M5.Display.fillRoundRect(10, 10, 300, 160, 10, M5.Display.color565(30, 30, 30));
+    M5.Display.drawRoundRect(10, 10, 300, 160, 10, M5.Display.color565(80, 80, 80));
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setTextSize(1.5);
+    M5.Display.setCursor(20, 20);
+    M5.Display.printf(suggestionText.c_str());
 
-  // Swipe indicator
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)
-  
+    // Swipe indicator
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING); // Up arrow (to HOME)
+}
+
+String wordWrap(String text, unsigned int lineLength) {
+    String result = "";
+    String currentLine = "";
+    String currentWord = "";
+
+    for (char c : text) {
+        if (c == ' ' || c == '\n') {
+            if (currentLine.length() + currentWord.length() + (c == ' ' ? 1 : 0) <= lineLength) {
+                currentLine += currentWord + (c == ' ' ? " " : "");
+            } else {
+                result += currentLine + "\n";
+                currentLine = currentWord + (c == ' ' ? " " : "");
+            }
+            currentWord = "";
+        } else {
+            currentWord += c;
+        }
+    }
+
+    if (currentLine.length() + currentWord.length() <= lineLength) {
+        result += currentLine + currentWord;
+    } else {
+        result += currentLine + "\n" + currentWord;
+    }
+
+    return result;
 }
 
 void fetchLlmResponse() {
@@ -504,6 +604,7 @@ void fetchLlmResponse() {
       }
     } while (length == 225);
 
+    suggestionText = wordWrap(suggestionText, 35);
     Serial.printf("Received response: %s\n", suggestionText.c_str());
     if (currentView == CONTROL) {
       drawControlView();
@@ -511,44 +612,35 @@ void fetchLlmResponse() {
   }
 }
 
+void drawSensorCard(int x, int y, const char* label, float value, const char* unit, uint16_t color) {
+    M5.Display.fillRoundRect(x, y, 140, 60, 10, M5.Display.color565(40, 40, 40));
+    M5.Display.setTextColor(color);
+    M5.Display.setTextSize(2);
+    M5.Display.drawString(label, x + 10, y + 10);
+    M5.Display.setTextSize(3);
+    M5.Display.drawString(String(value, 1), x + 10, y + 30);
+    M5.Display.setTextSize(2);
+    M5.Display.drawString(unit, x + 90, y + 35);
+}
+
 void drawStatusView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setTextColor(WHITE);
+    M5.Display.fillScreen(COLOR_BACKGROUND);
 
-  int y_start = 20;
-  int y_step = 35;
+    uint16_t nColor = M5.Display.color565(3, 169, 244);
+    uint16_t pColor = M5.Display.color565(76, 175, 80);
+    uint16_t kColor = M5.Display.color565(255, 152, 0);
+    uint16_t phColor = M5.Display.color565(244, 67, 54);
+    uint16_t humidColor = M5.Display.color565(0, 188, 212);
+    uint16_t sunColor = M5.Display.color565(255, 235, 59);
 
-  M5.Display.setTextSize(3);
-  M5.Display.setCursor(20, y_start);
-  M5.Display.printf("P: %.2f", lastP);
-  M5.Display.setCursor(20, y_start + y_step);
-  M5.Display.printf("N: %.2f", lastN);
-  M5.Display.setCursor(20, y_start + 2 * y_step);
-  M5.Display.printf("K: %.2f", lastK);
+    drawSensorCard(10, 20, "Nitrogen", lastN, "mg/kg", nColor);
+    drawSensorCard(170, 20, "Phosphorus", lastP, "mg/kg", pColor);
+    drawSensorCard(10, 90, "Potassium", lastK, "mg/kg", kColor);
+    drawSensorCard(170, 90, "pH", lastPh, "", phColor);
+    drawSensorCard(10, 160, "Humidity", lastHumid, "%", humidColor);
+    drawSensorCard(170, 160, "Sunlight", lastSun, "hr", sunColor);
 
-  M5.Display.setTextSize(2);
-  M5.Display.setCursor(180, y_start + 10);
-  M5.Display.printf("mg/kg");
-  M5.Display.setCursor(180, y_start + y_step + 10);
-  M5.Display.printf("mg/kg");
-  M5.Display.setCursor(180, y_start + 2 * y_step + 10);
-  M5.Display.printf("mg/kg");
-
-  M5.Display.setTextSize(3);
-  M5.Display.setCursor(20, y_start + 3 * y_step);
-  M5.Display.printf("pH: %.2f", lastPh);
-  M5.Display.setCursor(20, y_start + 4 * y_step);
-  M5.Display.printf("Hum: %.2f", lastHumid);
-  M5.Display.setCursor(20, y_start + 5 * y_step);
-  M5.Display.printf("Sun: %.2f", lastSun);
-
-  M5.Display.setTextSize(2);
-  M5.Display.setCursor(180, y_start + 4 * y_step + 10);
-  M5.Display.printf("%%");
-  M5.Display.setCursor(180, y_start + 5 * y_step + 10);
-  M5.Display.printf("hr");
-
-
-  // Right arrow to go back to HOME
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE);
+    // Right arrow to go back to HOME
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }
