@@ -170,7 +170,42 @@ void drawControlView() {
     M5.Display.setTextColor(COLOR_TEXT);
     M5.Display.setTextSize(1.5);
     M5.Display.setCursor(20, 20);
-    M5.Display.printf(suggestionText.c_str());
+
+    // Scrolling text logic
+    int start = 0;
+    int end = suggestionText.indexOf('\n');
+    int currentLine = 0;
+    int linesDrawn = 0;
+    int maxLines = 8; // approx. 160px height / 20px per line
+
+    while (end != -1 && linesDrawn < maxLines) {
+        if (currentLine >= scrollOffset) {
+            M5.Display.setCursor(20, 20 + linesDrawn * 20);
+            M5.Display.println(suggestionText.substring(start, end));
+            linesDrawn++;
+        }
+        start = end + 1;
+        end = suggestionText.indexOf('\n', start);
+        currentLine++;
+    }
+
+    if (start < suggestionText.length() && linesDrawn < maxLines) {
+        if (currentLine >= scrollOffset) {
+            M5.Display.setCursor(20, 20 + linesDrawn * 20);
+            M5.Display.println(suggestionText.substring(start));
+            linesDrawn++;
+        }
+    }
+
+    totalLines = countLines(suggestionText);
+
+    if (scrollOffset > 0) {
+        M5.Display.fillTriangle(290, 15, 300, 15, 295, 5, WHITE);
+    }
+    if (scrollOffset + maxLines < totalLines) {
+        M5.Display.fillTriangle(290, 165, 300, 165, 295, 175, WHITE);
+    }
+
 
     // Swipe indicator
     M5.Display.setTextColor(COLOR_TEXT);

@@ -124,6 +124,8 @@ void fetchLlmResponse() {
     } while (length == 225);
 
     suggestionText = wordWrap(suggestionText, 35);
+    scrollOffset = 0;
+    totalLines = countLines(suggestionText);
     Serial.printf("Received response: %s\n", suggestionText.c_str());
     if (currentView == CONTROL) {
       drawControlView();

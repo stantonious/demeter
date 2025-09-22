@@ -61,6 +61,8 @@ bool scanning = false;
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 String suggestionText = "";
+int scrollOffset = 0;
+int totalLines = 0;
 int selectedPlantType = 0;
 const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
 bool isDropdownOpen = false;
@@ -77,3 +79,4 @@ void drawLabels(float n, float p, float k, float ph, float humid, float sun);
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
+int countLines(String text);

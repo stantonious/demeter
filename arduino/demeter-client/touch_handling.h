@@ -60,7 +60,7 @@ void handleTouch() {
         } else if (currentView == CONTROL) {
           // Suggest button
           if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 180 && detail.y < 220) {
-              if (plantTypeChar && plantTypeChar.canWrite()) {
+            if (plantTypeChar && plantTypeChar.canWrite()) {
               int32_t value_to_write = selectedPlantType;
               Serial.println("Writing plant type to plantTypeChar...");
               plantTypeChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
@@ -71,7 +71,21 @@ void handleTouch() {
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               // The notification handler will update the text to "Generating..."
             }
-          
+          }
+          // Scroll up
+          if (detail.x > 280 && detail.y < 25) {
+              if (scrollOffset > 0) {
+                  scrollOffset--;
+                  drawControlView();
+              }
+          }
+
+          // Scroll down
+          if (detail.x > 280 && detail.y > 155 && detail.y < 185) {
+              if (scrollOffset + 8 < totalLines) { // 8 is maxLines
+                  scrollOffset++;
+                  drawControlView();
+              }
           }
         }
 

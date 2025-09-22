@@ -49,6 +49,7 @@ void loop() {
         drawBitmapView();
         break;
       case CONTROL:
+        scrollOffset = 0;
         drawControlView();
         break;
       case SETTINGS:
