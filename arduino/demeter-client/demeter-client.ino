@@ -54,13 +54,10 @@ void loop() {
       case CONTROL:
         drawControlView();
         break;
-      case STATUS_V:
-        drawStatusView();
-        break;
     }
   }
 
-  if ((currentView == PLOT || currentView == STATUS_V) && connected) {
+  if (currentView == PLOT && connected) {
     handleBLEData();
   }
 

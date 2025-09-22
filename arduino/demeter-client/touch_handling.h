@@ -16,17 +16,11 @@ void handleTouch() {
         if (currentView == HOME) {
           if (dx < 0) { // Swipe left
             currentView = PLOT;
-          } else { // Swipe right
-            currentView = STATUS_V;
           }
         } else if (currentView == PLOT) {
           if (dx > 0) { // Swipe right
             currentView = HOME;
           }
-        } else if (currentView == STATUS_V) {
-            if (dx < 0) { // Swipe left
-                currentView = HOME;
-            }
         }
       } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
         if (currentView == HOME) {
@@ -74,7 +68,6 @@ void handleTouch() {
             if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = CONTROL; } // Up
             else if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > M5.Display.height() - NAV_ARROW_PADDING * 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height()) { currentView = BITMAP; } // Down
             else if (detail.x > M5.Display.width() - NAV_ARROW_SIZE * 2 - NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = PLOT; } // Right
-            else if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = STATUS_V; } // Left
         } else if (currentView == PLOT) {
             if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; } // Back to Home
         } else if (currentView == BITMAP) {

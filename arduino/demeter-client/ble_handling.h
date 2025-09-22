@@ -96,8 +96,6 @@ void handleBLEData() {
     if (currentView == PLOT) {
         drawPlot();
         drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
-    } else if (currentView == STATUS_V) {
-        drawStatusView();
     }
   }
 }

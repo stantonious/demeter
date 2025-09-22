@@ -26,7 +26,6 @@ void drawHomeView() {
     M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);
     M5.Display.drawString("v", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, M5.Display.height() - NAV_ARROW_SIZE - NAV_ARROW_PADDING);
     M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
-    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }
 
 void drawPlot() {
@@ -169,37 +168,4 @@ void drawControlView() {
     // Swipe indicator
     M5.Display.setTextColor(COLOR_TEXT);
     M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING); // Up arrow (to HOME)
-}
-
-void drawSensorCard(int x, int y, const char* label, float value, const char* unit, uint16_t color) {
-    M5.Display.fillRoundRect(x, y, 140, 60, 10, M5.Display.color565(40, 40, 40));
-    M5.Display.setTextColor(color);
-    M5.Display.setTextSize(2);
-    M5.Display.drawString(label, x + 10, y + 10);
-    M5.Display.setTextSize(3);
-    M5.Display.drawString(String(value, 1), x + 10, y + 30);
-    M5.Display.setTextSize(2);
-    M5.Display.drawString(unit, x + 90, y + 35);
-}
-
-void drawStatusView() {
-    M5.Display.fillScreen(COLOR_BACKGROUND);
-
-    uint16_t nColor = M5.Display.color565(3, 169, 244);
-    uint16_t pColor = M5.Display.color565(76, 175, 80);
-    uint16_t kColor = M5.Display.color565(255, 152, 0);
-    uint16_t phColor = M5.Display.color565(244, 67, 54);
-    uint16_t humidColor = M5.Display.color565(0, 188, 212);
-    uint16_t sunColor = M5.Display.color565(255, 235, 59);
-
-    drawSensorCard(10, 20, "Nitrogen", lastN, "mg/kg", nColor);
-    drawSensorCard(170, 20, "Phosphorus", lastP, "mg/kg", pColor);
-    drawSensorCard(10, 90, "Potassium", lastK, "mg/kg", kColor);
-    drawSensorCard(170, 90, "pH", lastPh, "", phColor);
-    drawSensorCard(10, 160, "Humidity", lastHumid, "%", humidColor);
-    drawSensorCard(170, 160, "Sunlight", lastSun, "hr", sunColor);
-
-    // Right arrow to go back to HOME
-    M5.Display.setTextColor(COLOR_TEXT);
-    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }

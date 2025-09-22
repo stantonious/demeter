@@ -54,7 +54,7 @@ bool homeViewDirty = false;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT, BITMAP, CONTROL, STATUS_V };
+enum View { HOME, PLOT, BITMAP, CONTROL };
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 String suggestionText = "";
@@ -64,12 +64,10 @@ void handleBLEData();
 void startBleScan();
 void drawBitmapView();
 void drawControlView();
-void drawStatusView();
 void handleTouch();
 void drawPlot();
 void drawLabels(float n, float p, float k, float ph, float humid, float sun);
 void drawPlantIcon();
-void drawSensorCard(int x, int y, const char* label, float value, const char* unit, uint16_t color);
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
