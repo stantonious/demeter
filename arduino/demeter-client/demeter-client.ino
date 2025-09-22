@@ -7,8 +7,6 @@
 #include "ble_handling.h"
 #include "touch_handling.h"
 
-bool scanning = false;
-
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);

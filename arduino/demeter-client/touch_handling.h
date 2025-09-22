@@ -60,17 +60,18 @@ void handleTouch() {
         } else if (currentView == CONTROL) {
           // Suggest button
           if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 180 && detail.y < 220) {
+              if (plantTypeChar && plantTypeChar.canWrite()) {
+              int32_t value_to_write = selectedPlantType;
+              Serial.println("Writing plant type to plantTypeChar...");
+              plantTypeChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+            }
             if (suggestChar && suggestChar.canWrite()) {
               int32_t value_to_write = 0; // 0 triggers LLM generation
               Serial.println("Writing 0 to suggestChar to trigger LLM...");
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               // The notification handler will update the text to "Generating..."
             }
-            if (plantTypeChar && plantTypeChar.canWrite()) {
-              int32_t value_to_write = selectedPlantType;
-              Serial.println("Writing plant type to plantTypeChar...");
-              plantTypeChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
-            }
+          
           }
         }
 

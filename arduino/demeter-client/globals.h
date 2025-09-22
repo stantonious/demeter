@@ -56,7 +56,8 @@ bool homeViewDirty = false;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT, BITMAP, CONTROL, SETTINGS };
+enum View { HOME, PLOT, BITMAP, CONTROL, SETTINGS,STATUS_V };
+bool scanning = false;
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 String suggestionText = "";
