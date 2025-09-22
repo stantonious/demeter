@@ -1,134 +1,12 @@
 #include <M5Unified.h>
 #include <ArduinoBLE.h>
 
-// BLE target MAC and UUIDs
-const String demeter_mac = "dc:a6:32:d5:4e:9e";
-const char* uuidN = "12345678-1234-5678-1234-56789abcdef2";
-const char* uuidK = "12345678-1234-5678-1234-56789abcdef3";
-const char* uuidP = "12345678-1234-5678-1234-56789abcdef4";
-const char* uuidSuggest = "12345678-1234-5678-1234-56789abcdef5";
-const char* uuidLlm = "12345678-1234-5678-1234-56789abcdef6";
-const char* uuidPh = "12345678-1234-5678-1234-56789abcdef7";
-const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
-const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
-const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
+#include "globals.h"
+#include "utils.h"
+#include "ui_drawing.h"
+#include "ble_handling.h"
+#include "touch_handling.h"
 
-BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar;
-
-const int maxPoints = 160;
-float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints];
-int bufferIndex = 0;
-bool connected = false;
-int ledColor = DARKGREY;
-float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0;
-unsigned long lastHeartbeatTime = 0;
-bool homeViewDirty = false;
-
-// Touch gesture state
-int touch_x = -1;
-int touch_y = -1;
-
-enum View { HOME, PLOT, BITMAP, CONTROL, STATUS_V };
-#include "bitmap_data.h"
-View currentView = HOME;
-View lastView = PLOT; // Force initial draw
-String suggestionText = "";
-
-void handleBLEData();
-void startBleScan();
-void drawBitmapView();
-void drawControlView();
-void drawStatusView();
-
-void handleTouch() {
-  auto detail = M5.Touch.getDetail();
-  if (detail.wasPressed()) {
-    touch_x = detail.x;
-    touch_y = detail.y;
-    Serial.printf("touched %i %i\n", touch_x, touch_y);
-  } else if (detail.wasReleased()) {
-    if (touch_x != -1) {
-      int dx = detail.x - touch_x;
-      int dy = detail.y - touch_y;
-      if (abs(dx) > abs(dy) && abs(dx) > 50) { // Horizontal swipe
-        if (currentView == HOME) {
-          if (dx < 0) { // Swipe left
-            currentView = PLOT;
-          } else { // Swipe right
-            currentView = STATUS_V;
-          }
-        } else if (currentView == PLOT) {
-          if (dx > 0) { // Swipe right
-            currentView = HOME;
-          }
-        } else if (currentView == STATUS_V) {
-            if (dx < 0) { // Swipe left
-                currentView = HOME;
-            }
-        }
-      } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
-        if (currentView == HOME) {
-          if (dy < 0) { // Swipe up
-            currentView = BITMAP;
-          } else { // Swipe down
-            currentView = CONTROL;
-          }
-        } else if (currentView == BITMAP) {
-          if (dy > 0) { // Swipe down
-            currentView = HOME;
-          }
-        } else if (currentView == CONTROL) {
-          if (dy < 0) { // Swipe up
-            currentView = HOME;
-          }
-        }
-      } else { // Button press
-        // --- App-specific buttons
-        if (currentView == HOME && detail.x > 110 && detail.x < 210 && detail.y > 100 && detail.y < 140) {
-          if (connected) {
-            peripheral.disconnect();
-            connected = false;
-            ledColor = DARKGREY;
-            homeViewDirty = true;
-          } else {
-            ledColor = YELLOW;
-            homeViewDirty = true;
-            startBleScan();
-          }
-        } else if (currentView == CONTROL) {
-          // Suggest button is now the only button on this view
-          if (detail.x > 20 && detail.x < 120 && detail.y > 200 && detail.y < 240) {
-            if (suggestChar && suggestChar.canWrite()) {
-              int32_t value_to_write = 0; // 0 triggers LLM generation
-              Serial.println("Writing 0 to suggestChar to trigger LLM...");
-              suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
-              // The notification handler will update the text to "Generating..."
-            }
-          }
-        }
-
-        // --- Navigation buttons
-        if (currentView == HOME) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = CONTROL; } // Up
-          else if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = BITMAP; } // Down
-          else if (detail.x > 290 && detail.x < 320 && detail.y > 100 && detail.y < 140) { currentView = PLOT; } // Left
-          else if (detail.x < 40 && detail.y > 100 && detail.y < 140) { currentView = STATUS_V; } // Tap on left arrow
-        } else if (currentView == PLOT) {
-          if (detail.x > 0 && detail.x < 30 && detail.y > 100 && detail.y < 140) { currentView = HOME; } // Left
-        } else if (currentView == BITMAP) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 0 && detail.y < 30) { currentView = HOME; } // Up
-        } else if (currentView == CONTROL) {
-          if (detail.x > 140 && detail.x < 180 && detail.y > 210 && detail.y < 240) { currentView = HOME; } // Down
-        }
-      }
-    }
-    touch_x = -1;
-    touch_y = -1;
-  }
-}
-
-bool scanning = false;
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
@@ -149,34 +27,6 @@ void setup() {
   }
 }
 
-void startBleScan() {
-  if (!connected) {
-    scanning = true;
-    BLE.scan();
-  }
-}
-
-void drawHomeView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setTextSize(2);
-
-  // Draw Connect/Disconnect Button
-  M5.Display.fillRoundRect(110, 100, 120, 40, 10, BLUE);
-  M5.Display.setTextColor(WHITE);
-  const char* txt = connected ? "Disconnect" : "Connect";
-  // The button is at (110, 100) with size 120x40, so center is (170, 120)
-  M5.Display.drawCenterString(txt, 170, 120);
-
-  // Draw Status LED
-  M5.Display.fillCircle(280, 20, 10, ledColor);
-
-  // Swipe indicators
-  M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE);       // Up arrow (to BITMAP)
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE);    // Down arrow (to CONTROL)
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE); // Right arrow (for left swipe to PLOT)
-  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow (for right swipe or tap to STATUS)
-}
-
 void loop() {
   M5.update();
   handleTouch();
@@ -188,11 +38,10 @@ void loop() {
         drawHomeView();
         break;
       case PLOT:
-        M5.Display.fillScreen(BLACK);
         if (connected) {
-          drawPlot();
-          drawLabels(lastN, lastK, lastP);
+          drawPlotView();
         } else {
+          M5.Display.fillScreen(BLACK);
           // Display nothing when disconnected, matching other views
         }
         break;
@@ -202,13 +51,13 @@ void loop() {
       case CONTROL:
         drawControlView();
         break;
-      case STATUS_V:
-        drawStatusView();
+      case SETTINGS:
+        drawSettingsView();
         break;
     }
   }
 
-  if ((currentView == PLOT || currentView == STATUS_V) && connected) {
+  if ((currentView == PLOT || currentView == SETTINGS) && connected) {
     handleBLEData();
   }
 
@@ -294,261 +143,4 @@ void loop() {
   }
 
   delay(100);
-}
-
-void handleBLEData() {
-  bool needsRedraw = false;
-  if (nChar.valueUpdated()) {
-    memcpy(&lastN, nChar.value(), sizeof(float));
-    nBuffer[bufferIndex] = lastN;
-    needsRedraw = true;
-  }
-  if (kChar.valueUpdated()) {
-    memcpy(&lastK, kChar.value(), sizeof(float));
-    kBuffer[bufferIndex] = lastK;
-    needsRedraw = true;
-  }
-  if (pChar.valueUpdated()) {
-    memcpy(&lastP, pChar.value(), sizeof(float));
-    pBuffer[bufferIndex] = lastP;
-    needsRedraw = true;
-  }
-  if (phChar.valueUpdated()) {
-    memcpy(&lastPh, phChar.value(), sizeof(float));
-    phBuffer[bufferIndex] = lastPh;
-    needsRedraw = true;
-  }
-  if (humidChar.valueUpdated()) {
-    memcpy(&lastHumid, humidChar.value(), sizeof(float));
-    humidBuffer[bufferIndex] = lastHumid;
-    needsRedraw = true;
-  }
-  if (sunChar.valueUpdated()) {
-    memcpy(&lastSun, sunChar.value(), sizeof(float));
-    sunBuffer[bufferIndex] = lastSun;
-    needsRedraw = true;
-  }
-
-  if (needsRedraw) {
-    bufferIndex = (bufferIndex + 1) % maxPoints;
-    if (currentView == PLOT) {
-        drawPlot();
-        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
-    } else if (currentView == STATUS_V) {
-        drawStatusView();
-    }
-  }
-}
-
-void setupCharacteristics() {
-  nChar = peripheral.characteristic(uuidN);
-  kChar = peripheral.characteristic(uuidK);
-  pChar = peripheral.characteristic(uuidP);
-  suggestChar = peripheral.characteristic(uuidSuggest);
-  llmChar = peripheral.characteristic(uuidLlm);
-  phChar = peripheral.characteristic(uuidPh);
-  humidChar = peripheral.characteristic(uuidHumid);
-  sunChar = peripheral.characteristic(uuidSun);
-
-  if (nChar && nChar.canSubscribe()) {
-    nChar.subscribe();
-    Serial.println("Subscribed to N");
-  }
-
-  if (kChar && kChar.canSubscribe()) {
-    kChar.subscribe();
-    Serial.println("Subscribed to K");
-  }
-
-  if (pChar && pChar.canSubscribe()) {
-    pChar.subscribe();
-    Serial.println("Subscribed to P");
-  }
-
-  if (phChar && phChar.canSubscribe()) {
-    phChar.subscribe();
-    Serial.println("Subscribed to Ph");
-  }
-
-  if (humidChar && humidChar.canSubscribe()) {
-    humidChar.subscribe();
-    Serial.println("Subscribed to Humid");
-  }
-
-  if (sunChar && sunChar.canSubscribe()) {
-    sunChar.subscribe();
-    Serial.println("Subscribed to Sun");
-  }
-
-  llmStatusChar = peripheral.characteristic(uuidLlmStatus);
-  if (llmStatusChar && llmStatusChar.canSubscribe()) {
-    llmStatusChar.subscribe();
-    Serial.println("Subscribed to LlmStatus");
-  }
-}
-
-void drawPlot() {
-  M5.Display.fillRect(0, 40, 320, 200, BLACK);
-  M5.Display.drawLine(10, 220, 310, 220, WHITE); // X-axis
-  M5.Display.drawLine(10, 60, 10, 220, WHITE);   // Y-axis
-
-  for (int i = 1; i < maxPoints; i++) {
-    int idx1 = (bufferIndex + i - 1) % maxPoints;
-    int idx2 = (bufferIndex + i) % maxPoints;
-    int x1 = 10 + i - 1;
-    int x2 = 10 + i;
-
-    int y1_n = map(nBuffer[idx1], 0, 100, 220, 60);
-    int y2_n = map(nBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_n, x2, y2_n, GREEN);
-
-    int y1_k = map(kBuffer[idx1], 0, 100, 220, 60);
-    int y2_k = map(kBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_k, x2, y2_k, YELLOW);
-
-    int y1_p = map(pBuffer[idx1], 0, 100, 220, 60);
-    int y2_p = map(pBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_p, x2, y2_p, BLUE);
-
-    int y1_ph = map(phBuffer[idx1], 0, 14, 220, 60);
-    int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60);
-    M5.Display.drawLine(x1, y1_ph, x2, y2_ph, RED);
-
-    int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60);
-    int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60);
-    M5.Display.drawLine(x1, y1_humid, x2, y2_humid, CYAN);
-
-    int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60);
-    int y2_sun = map(sunBuffer[idx2], 0, 24, 220, 60);
-    M5.Display.drawLine(x1, y1_sun, x2, y2_sun, MAGENTA);
-  }
-  M5.Display.fillTriangle(10, 120, 20, 110, 20, 130, WHITE); // Left arrow
-}
-
-void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
-  M5.Display.fillRect(0, 0, 320, 40, BLACK);
-
-  // Row 1
-  M5.Display.setCursor(10, 5);
-  M5.Display.setTextColor(GREEN);
-  M5.Display.printf("N: %.1f", n);
-
-  M5.Display.setCursor(110, 5);
-  M5.Display.setTextColor(BLUE);
-  M5.Display.printf("P: %.1f", p);
-
-  M5.Display.setCursor(210, 5);
-  M5.Display.setTextColor(YELLOW);
-  M5.Display.printf("K: %.1f", k);
-
-  // Row 2
-  M5.Display.setCursor(10, 25);
-  M5.Display.setTextColor(RED);
-  M5.Display.printf("pH: %.1f", ph);
-
-  M5.Display.setCursor(110, 25);
-  M5.Display.setTextColor(CYAN);
-  M5.Display.printf("Hum: %.1f", humid);
-
-  M5.Display.setCursor(210, 25);
-  M5.Display.setTextColor(MAGENTA);
-  M5.Display.printf("Sun: %.1f", sun);
-
-
-  M5.Display.setTextColor(WHITE);  // Reset to default for other text
-}
-
-void drawBitmapView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.pushImage(96, 56, 128, 128, myBitmap);
-
-   M5.Display.fillTriangle(160, 10, 150, 20, 170, 20, WHITE); // Up arrow (to HOME)
-}
-
-void drawControlView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setCursor(10, 10);
-  M5.Display.setTextSize(2);
-
-  // Draw Suggest Button
-  M5.Display.drawRect(20, 200, 100, 40, WHITE);
-  M5.Display.setCursor(30, 212);
-  M5.Display.print("Suggest");
-
-  M5.Display.setCursor(10, 0);
-  M5.Display.setTextSize(1.5);
-  M5.Display.print(suggestionText);
-  Serial.printf("print text %s\n",suggestionText.c_str());
-
-  // Swipe indicator
-  M5.Display.fillTriangle(160, 230, 150, 220, 170, 220, WHITE); // Down arrow (to HOME)
-  
-}
-
-void fetchLlmResponse() {
-  if (suggestChar && suggestChar.canWrite() && llmChar && llmChar.canRead()) {
-    suggestionText = "";
-    byte buffer[226]; // 225 bytes for data + 1 for null terminator
-    int32_t offset = 1;
-    int length = 0;
-
-    do {
-      suggestChar.writeValue((byte*)&offset, sizeof(offset));
-      delay(100);
-      length = llmChar.readValue(buffer, 225);
-
-      if (length > 0) {
-        buffer[length] = '\0';
-        suggestionText += String((char*)buffer);
-        offset += length;
-      }
-    } while (length == 225);
-
-    Serial.printf("Received response: %s\n", suggestionText.c_str());
-    if (currentView == CONTROL) {
-      drawControlView();
-    }
-  }
-}
-
-void drawStatusView() {
-  M5.Display.fillScreen(BLACK);
-  M5.Display.setTextColor(WHITE);
-
-  int y_start = 20;
-  int y_step = 35;
-
-  M5.Display.setTextSize(3);
-  M5.Display.setCursor(20, y_start);
-  M5.Display.printf("P: %.2f", lastP);
-  M5.Display.setCursor(20, y_start + y_step);
-  M5.Display.printf("N: %.2f", lastN);
-  M5.Display.setCursor(20, y_start + 2 * y_step);
-  M5.Display.printf("K: %.2f", lastK);
-
-  M5.Display.setTextSize(2);
-  M5.Display.setCursor(180, y_start + 10);
-  M5.Display.printf("mg/kg");
-  M5.Display.setCursor(180, y_start + y_step + 10);
-  M5.Display.printf("mg/kg");
-  M5.Display.setCursor(180, y_start + 2 * y_step + 10);
-  M5.Display.printf("mg/kg");
-
-  M5.Display.setTextSize(3);
-  M5.Display.setCursor(20, y_start + 3 * y_step);
-  M5.Display.printf("pH: %.2f", lastPh);
-  M5.Display.setCursor(20, y_start + 4 * y_step);
-  M5.Display.printf("Hum: %.2f", lastHumid);
-  M5.Display.setCursor(20, y_start + 5 * y_step);
-  M5.Display.printf("Sun: %.2f", lastSun);
-
-  M5.Display.setTextSize(2);
-  M5.Display.setCursor(180, y_start + 4 * y_step + 10);
-  M5.Display.printf("%%");
-  M5.Display.setCursor(180, y_start + 5 * y_step + 10);
-  M5.Display.printf("hr");
-
-
-  // Right arrow to go back to HOME
-  M5.Display.fillTriangle(310, 120, 300, 110, 300, 130, WHITE);
 }
