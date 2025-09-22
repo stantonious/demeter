@@ -40,6 +40,7 @@ phr_val = 0.
 ph_val = 7.0
 humid_val = 50.0
 sun_val = 8.0
+plant_type = 'ground cover'
 
 
 class Characteristic(dbus.service.Object):
@@ -491,13 +492,61 @@ def generate_llm_response(prompt, llm_status_char):
         is_generating = False
         llm_status_char.set_status(2) # Ready
 
-plant_type = 'ground cover' #'shrub'
 location_lat="39.5186"
 location_lon="-104.7614"
 sun_amount = "6"
 ph_level="7."
 soil_moister_level = "semi-dry"
 relative_humidity_level = "19" #percent
+
+class PlantTypeChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0  # Initial integer value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        # Pack integer as 4-byte little-endian
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global plant_type
+        if len(value) == 4:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set plant type to: {written_value}")
+            if written_value == 0:
+                plant_type = 'ground cover'
+            elif written_value == 1:
+                plant_type = 'veg'
+            elif written_value == 2:
+                plant_type = 'shrub'
+            elif written_value == 3:
+                plant_type = 'flowering'
+        else:
+            print(f"Received invalid byte array length: {len(value)}")
+
+
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -792,6 +841,9 @@ def main():
     llm_status_char = LlmStatusChar(bus, 9,
     "12345678-1234-5678-1234-56789abcdeff", ["read", "notify"], service)
     service.characteristics.append(llm_status_char)
+    plant_type_char = PlantTypeChar(bus, 10,
+    "12345678-1234-5678-1234-56789abcdefa", ["write"], service)
+    service.characteristics.append(plant_type_char)
     service.llm_status_char = llm_status_char
     app.add_service(service)
 
