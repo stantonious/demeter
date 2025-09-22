@@ -40,7 +40,7 @@ phr_val = 0.
 ph_val = 7.0
 humid_val = 50.0
 sun_val = 8.0
-plant_type = 'ground cover'
+g_plant_type = 'ground cover'
 
 
 class Characteristic(dbus.service.Object):
@@ -457,11 +457,12 @@ def generate_plant_prompt(
     n_mgkg, p_mgkg, k_mgkg, ph, moisture, sunlight,
     lat, lon, soil_type, plant_type, max_plants=3
 ):
+    print ('ptype',plant_type)
     prompt = (
         f"Suggest {max_plants} {plant_type} plants for location ({lat}, {lon}) with {soil_type} soil.\n"
-        f"Soil: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
+        f"Soil composition is: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
         f"Sunlight: {sunlight}.\n"
-        f"Reply in {max_plants} short bullet points only. No extra text. Use emojis."
+        f"Reply in {max_plants} short bullet point only. No extra text."
     )
     return prompt
 
@@ -531,18 +532,19 @@ class PlantTypeChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        global plant_type
+        global g_plant_type
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set plant type to: {written_value}")
             if written_value == 0:
-                plant_type = 'ground cover'
+                g_plant_type = 'ground cover'
             elif written_value == 1:
-                plant_type = 'veg'
+                g_plant_type = 'veg'
             elif written_value == 2:
-                plant_type = 'shrub'
+                g_plant_type = 'shrub'
             elif written_value == 3:
-                plant_type = 'flowering'
+                g_plant_type = 'flowering'
+            print ('setting plant type to ',g_plant_type)
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
@@ -582,20 +584,15 @@ class IntWritableChar(dbus.service.Object):
         # This characteristic is now only used to trigger generation.
         # The llm_status_char will be used for notifications.
         # It is passed in the constructor.
+        global g_plant_type
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {written_value}")
             if written_value == 0:
                 self.value = 1 # set offset to 1
                 if not is_generating:
-                    print ('generating')
-                    llm_prompt = f'Provide the plant name only for the following question.  ' \
-                    f'What is the single, best {plant_type} plant type that will thrive in soil conditions' \
-                      f'that contain {pot_val} mg/kg potassium, {nit_val} mg/kg nitrogen, {phr_val} mg/kg phosphorus '\
-                      f'and a pH level of {ph_level} and is located at latitude {location_lat} and '\
-                      f'longitude {location_lon} and will get {sun_amount} hours of sun per day with relative humidity of '\
-                      f'{relative_humidity_level}% and soil moisture level is {soil_moister_level}.'
-                    llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=plant_type,max_plants=1)
+                    print ('generating',g_plant_type)
+                    llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
                     print ('sending ollama req',llm_prompt)
                     # Pass the llm_status_char to the thread
                     thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,self.service.llm_status_char))
