@@ -59,7 +59,7 @@ void handleTouch() {
           }
         } else if (currentView == CONTROL) {
           // Suggest button
-          if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 180 && detail.y < 220) {
+          if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 200 && detail.y < 230) {
             if (plantTypeChar && plantTypeChar.canWrite()) {
               int32_t value_to_write = selectedPlantType;
               Serial.println("Writing plant type to plantTypeChar...");
@@ -81,8 +81,8 @@ void handleTouch() {
           }
 
           // Scroll down
-          if (detail.x > 280 && detail.y > 155 && detail.y < 185) {
-              if (scrollOffset + 8 < totalLines) { // 8 is maxLines
+          if (detail.x > 280 && detail.y > 175 && detail.y < 195) {
+              if (scrollOffset + 9 < totalLines) { // 9 is maxLines
                   scrollOffset++;
                   drawControlView();
               }

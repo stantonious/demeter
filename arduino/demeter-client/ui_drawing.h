@@ -159,14 +159,14 @@ void drawControlView() {
     // Draw Suggest Button
     uint16_t primaryColor = M5.Display.color565(0, 150, 136); // Teal
     uint16_t shadowColor = M5.Display.color565(50, 50, 50);
-    M5.Display.fillRoundRect(BUTTON_X + 2, 182, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, shadowColor); // Shadow
-    M5.Display.fillRoundRect(BUTTON_X, 180, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, primaryColor); // Main Button
+    M5.Display.fillRoundRect(BUTTON_X + 2, 202, BUTTON_WIDTH, 30, BUTTON_RADIUS, shadowColor); // Shadow
+    M5.Display.fillRoundRect(BUTTON_X, 200, BUTTON_WIDTH, 30, BUTTON_RADIUS, primaryColor); // Main Button
     M5.Display.setTextColor(COLOR_TEXT);
-    M5.Display.drawCenterString("Suggest", BUTTON_X + BUTTON_WIDTH / 2, 200);
+    M5.Display.drawCenterString("Suggest", BUTTON_X + BUTTON_WIDTH / 2, 215);
 
     // Draw Text Area for Suggestion
-    M5.Display.fillRoundRect(10, 10, 300, 160, 10, M5.Display.color565(30, 30, 30));
-    M5.Display.drawRoundRect(10, 10, 300, 160, 10, M5.Display.color565(80, 80, 80));
+    M5.Display.fillRoundRect(10, 10, 300, 180, 10, M5.Display.color565(30, 30, 30));
+    M5.Display.drawRoundRect(10, 10, 300, 180, 10, M5.Display.color565(80, 80, 80));
     M5.Display.setTextColor(COLOR_TEXT);
     M5.Display.setTextSize(1.5);
     M5.Display.setCursor(20, 20);
@@ -176,7 +176,7 @@ void drawControlView() {
     int end = suggestionText.indexOf('\n');
     int currentLine = 0;
     int linesDrawn = 0;
-    int maxLines = 8; // approx. 160px height / 20px per line
+    int maxLines = 9; // approx. 180px height / 20px per line
 
     while (end != -1 && linesDrawn < maxLines) {
         if (currentLine >= scrollOffset) {
@@ -203,7 +203,7 @@ void drawControlView() {
         M5.Display.fillTriangle(290, 15, 300, 15, 295, 5, WHITE);
     }
     if (scrollOffset + maxLines < totalLines) {
-        M5.Display.fillTriangle(290, 165, 300, 165, 295, 175, WHITE);
+        M5.Display.fillTriangle(290, 185, 300, 185, 295, 195, WHITE);
     }
 
 
