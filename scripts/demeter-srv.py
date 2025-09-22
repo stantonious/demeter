@@ -444,12 +444,14 @@ class PChar(dbus.service.Object):
 
 current_llm_response = ""
 is_generating = False
+g_llm_prompt = ""
 
-def update_generating_status(start_time):
+def update_generating_status(start_time,prompt=''):
+    print ('status p',prompt)
     global current_llm_response
     while is_generating:
         elapsed = int(time.time() - start_time)
-        current_llm_response = f"Generating... {elapsed}s"
+        current_llm_response = f"Generating \n\t{prompt}.\n\t{elapsed}s"
         time.sleep(1)
 
 
@@ -459,7 +461,7 @@ def generate_plant_prompt(
 ):
     print ('ptype',plant_type)
     prompt = (
-        f"Suggest {max_plants} {plant_type} plants for location ({lat}, {lon}) with {soil_type} soil.\n"
+        f"Suggest {max_plants} {plant_type} plant types for a location ({lat}, {lon}) with {soil_type} soil.\n"
         f"Soil composition is: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
         f"Sunlight: {sunlight}.\n"
         f"Reply in {max_plants} short bullet point only. No extra text."
@@ -477,7 +479,7 @@ def generate_llm_response(prompt, llm_status_char):
     print('starting ollama req in background')
     start_time = time.time()
 
-    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,))
+    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,g_llm_prompt))
     counter_thread.daemon = True
     counter_thread.start()
 
@@ -539,7 +541,7 @@ class PlantTypeChar(dbus.service.Object):
             if written_value == 0:
                 g_plant_type = 'ground cover'
             elif written_value == 1:
-                g_plant_type = 'veg'
+                g_plant_type = 'vegetable'
             elif written_value == 2:
                 g_plant_type = 'shrub'
             elif written_value == 3:
@@ -585,6 +587,7 @@ class IntWritableChar(dbus.service.Object):
         # The llm_status_char will be used for notifications.
         # It is passed in the constructor.
         global g_plant_type
+        global g_llm_prompt
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {written_value}")
@@ -592,10 +595,10 @@ class IntWritableChar(dbus.service.Object):
                 self.value = 1 # set offset to 1
                 if not is_generating:
                     print ('generating',g_plant_type)
-                    llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
-                    print ('sending ollama req',llm_prompt)
+                    g_llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
+                    print ('sending ollama req',g_llm_prompt)
                     # Pass the llm_status_char to the thread
-                    thread = threading.Thread(target=generate_llm_response, args=(llm_prompt,self.service.llm_status_char))
+                    thread = threading.Thread(target=generate_llm_response, args=(g_llm_prompt,self.service.llm_status_char))
                     thread.daemon = True
                     thread.start()
                 else:
