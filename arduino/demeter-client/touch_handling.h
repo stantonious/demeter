@@ -58,8 +58,22 @@ void handleTouch() {
             startBleScan();
           }
         } else if (currentView == CONTROL) {
-          // Suggest button
-          if (detail.x > BUTTON_X && detail.x < BUTTON_X + BUTTON_WIDTH && detail.y > 200 && detail.y < 230) {
+          // Scroll up
+          if (detail.x > 280 && detail.y < 25) {
+              if (scrollOffset > 0) {
+                  scrollOffset--;
+                  drawControlView();
+              }
+          }
+          // Scroll down
+          else if (detail.x > 280 && detail.y > 215 && detail.y < 245) {
+              if (scrollOffset + 11 < totalLines) { // 11 is maxLines
+                  scrollOffset++;
+                  drawControlView();
+              }
+          }
+          // Suggest action
+          else if (detail.x > 10 && detail.x < 310 && detail.y > 10 && detail.y < 230) {
             if (plantTypeChar && plantTypeChar.canWrite()) {
               int32_t value_to_write = selectedPlantType;
               Serial.println("Writing plant type to plantTypeChar...");
@@ -71,21 +85,6 @@ void handleTouch() {
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               // The notification handler will update the text to "Generating..."
             }
-          }
-          // Scroll up
-          if (detail.x > 280 && detail.y < 25) {
-              if (scrollOffset > 0) {
-                  scrollOffset--;
-                  drawControlView();
-              }
-          }
-
-          // Scroll down
-          if (detail.x > 280 && detail.y > 175 && detail.y < 195) {
-              if (scrollOffset + 9 < totalLines) { // 9 is maxLines
-                  scrollOffset++;
-                  drawControlView();
-              }
           }
         }
 
