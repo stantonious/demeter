@@ -56,6 +56,8 @@ void setupCharacteristics() {
     llmStatusChar.subscribe();
     Serial.println("Subscribed to LlmStatus");
   }
+
+  plantTypeChar = peripheral.characteristic(uuidPlantType);
 }
 
 void handleBLEData() {
@@ -96,6 +98,8 @@ void handleBLEData() {
     if (currentView == PLOT) {
         drawPlot();
         drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
+    } else if (currentView == SETTINGS) {
+        drawSettingsView();
     }
   }
 }

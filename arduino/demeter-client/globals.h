@@ -15,6 +15,7 @@ const char* uuidPh = "12345678-1234-5678-1234-56789abcdef7";
 const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
 const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
+const char* uuidPlantType = "12345678-1234-5678-1234-56789abcdefa";
 
 // UI Constants
 const uint16_t COLOR_BACKGROUND = BLACK;
@@ -40,7 +41,7 @@ const int NAV_ARROW_SIZE = 10;
 const int NAV_ARROW_PADDING = 10;
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar, plantTypeChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints];

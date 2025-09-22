@@ -59,7 +59,7 @@ void loop() {
     }
   }
 
-  if (currentView == PLOT && connected) {
+  if ((currentView == PLOT || currentView == SETTINGS) && connected) {
     handleBLEData();
   }
 

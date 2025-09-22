@@ -66,6 +66,11 @@ void handleTouch() {
               suggestChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
               // The notification handler will update the text to "Generating..."
             }
+            if (plantTypeChar && plantTypeChar.canWrite()) {
+              int32_t value_to_write = selectedPlantType;
+              Serial.println("Writing plant type to plantTypeChar...");
+              plantTypeChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+            }
           }
         }
 
