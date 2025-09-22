@@ -26,10 +26,10 @@ void drawHomeView() {
     M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);
     M5.Display.drawString("v", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, M5.Display.height() - NAV_ARROW_SIZE - NAV_ARROW_PADDING);
     M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }
 
 void drawPlot() {
-    M5.Display.fillRect(0, 40, 320, 200, COLOR_BACKGROUND);
     M5.Display.drawRect(10, 60, 300, 160, COLOR_TEXT); // Plot border
 
     // Define a modern color palette
@@ -73,7 +73,7 @@ void drawPlot() {
             M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
         }
     }
-    M5.Display.drawString("<", 10, 115); // Back to Home
+    M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2); // Back to Home
 }
 
 void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
@@ -117,29 +117,36 @@ void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
     M5.Display.setTextColor(WHITE); // Reset color
 }
 
-void drawPlantIcon() {
-    int centerX = 160;
-    int baseY = 180; // Adjusted for centering
-    uint16_t stemColor = M5.Display.color565(139, 69, 19); // Brown
-    uint16_t leafColor = M5.Display.color565(34, 139, 34); // Forest Green
+void drawPlotView() {
+    M5.Display.fillScreen(COLOR_BACKGROUND);
+    drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
+    drawPlot();
+}
 
-    // Pot
-    M5.Display.fillRoundRect(centerX - 60, baseY, 120, 60, 10, stemColor);
-    M5.Display.fillRect(centerX - 70, baseY - 15, 140, 15, stemColor);
+void drawSettingsView() {
+    M5.Display.fillScreen(COLOR_BACKGROUND);
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setTextSize(2);
+    M5.Display.drawString("Plant Type", 50, 20);
 
-    // Stem
-    M5.Display.fillRect(centerX - 10, baseY - 100, 20, 85, leafColor);
+    // Draw dropdown
+    M5.Display.fillRoundRect(50, 50, 220, 30, 5, M5.Display.color565(80, 80, 80));
+    M5.Display.drawString(plantTypes[selectedPlantType], 60, 55);
+    M5.Display.fillTriangle(250, 60, 260, 60, 255, 70, COLOR_TEXT);
 
-    // Leaves
-    M5.Display.fillTriangle(centerX, baseY - 100, centerX - 60, baseY - 50, centerX, baseY - 20, leafColor);
-    M5.Display.fillTriangle(centerX, baseY - 100, centerX + 60, baseY - 50, centerX, baseY - 20, leafColor);
-    M5.Display.fillTriangle(centerX, baseY - 60, centerX - 50, baseY - 20, centerX, baseY, leafColor);
-    M5.Display.fillTriangle(centerX, baseY - 60, centerX + 50, baseY - 20, centerX, baseY, leafColor);
+    if (isDropdownOpen) {
+        for (int i = 0; i < 4; i++) {
+            M5.Display.fillRoundRect(50, 80 + i * 30, 220, 30, 5, M5.Display.color565(120, 120, 120));
+            M5.Display.drawString(plantTypes[i], 60, 85 + i * 30);
+        }
+    }
+
+    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
 }
 
 void drawBitmapView() {
     M5.Display.fillScreen(BLACK);
-    drawPlantIcon();
+    M5.Display.pushImage(96, 56, 128, 128, myBitmap);
 
     M5.Display.setTextColor(WHITE);
     M5.Display.drawString("v", 155, 220); // Down arrow (to HOME)

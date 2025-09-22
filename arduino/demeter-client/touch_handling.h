@@ -16,11 +16,17 @@ void handleTouch() {
         if (currentView == HOME) {
           if (dx < 0) { // Swipe left
             currentView = PLOT;
+          } else { // Swipe right
+            currentView = SETTINGS;
           }
         } else if (currentView == PLOT) {
           if (dx > 0) { // Swipe right
             currentView = HOME;
           }
+        } else if (currentView == SETTINGS) {
+            if (dx < 0) { // Swipe left
+                currentView = HOME;
+            }
         }
       } else if (abs(dy) > abs(dx) && abs(dy) > 50) { // Vertical swipe
         if (currentView == HOME) {
@@ -30,11 +36,11 @@ void handleTouch() {
             currentView = BITMAP;
           }
         } else if (currentView == BITMAP) {
-          if (dy < 0) { // Swipe up
+          if (dy > 0) { // Swipe down
             currentView = HOME;
           }
         } else if (currentView == CONTROL) {
-          if (dy > 0) { // Swipe down
+          if (dy < 0) { // Swipe up
             currentView = HOME;
           }
         }
@@ -68,8 +74,28 @@ void handleTouch() {
             if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = CONTROL; } // Up
             else if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > M5.Display.height() - NAV_ARROW_PADDING * 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height()) { currentView = BITMAP; } // Down
             else if (detail.x > M5.Display.width() - NAV_ARROW_SIZE * 2 - NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = PLOT; } // Right
+            else if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = SETTINGS; } // Left
         } else if (currentView == PLOT) {
+            if (detail.x > M5.Display.width() - NAV_ARROW_SIZE * 2 - NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; } // Back to Home
+        } else if (currentView == SETTINGS) {
             if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; } // Back to Home
+
+            // Dropdown toggle
+            if (detail.x > 50 && detail.x < 270 && detail.y > 50 && detail.y < 80) {
+                isDropdownOpen = !isDropdownOpen;
+                drawSettingsView();
+            }
+
+            if (isDropdownOpen) {
+                for (int i = 0; i < 4; i++) {
+                    if (detail.x > 50 && detail.x < 270 && detail.y > 80 + i * 30 && detail.y < 80 + (i + 1) * 30) {
+                        selectedPlantType = i;
+                        isDropdownOpen = false;
+                        drawSettingsView();
+                        break;
+                    }
+                }
+            }
         } else if (currentView == BITMAP) {
             if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > M5.Display.height() - NAV_ARROW_PADDING * 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height()) { currentView = HOME; } // Back to Home
         } else if (currentView == CONTROL) {

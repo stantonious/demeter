@@ -40,11 +40,10 @@ void loop() {
         drawHomeView();
         break;
       case PLOT:
-        M5.Display.fillScreen(BLACK);
         if (connected) {
-          drawPlot();
-          drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
+          drawPlotView();
         } else {
+          M5.Display.fillScreen(BLACK);
           // Display nothing when disconnected, matching other views
         }
         break;
@@ -53,6 +52,9 @@ void loop() {
         break;
       case CONTROL:
         drawControlView();
+        break;
+      case SETTINGS:
+        drawSettingsView();
         break;
     }
   }

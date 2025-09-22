@@ -2,6 +2,7 @@
 
 #include <M5Unified.h>
 #include <ArduinoBLE.h>
+#include "bitmap_data.h"
 
 // BLE target MAC and UUIDs
 const String demeter_mac = "dc:a6:32:d5:4e:9e";
@@ -54,20 +55,23 @@ bool homeViewDirty = false;
 int touch_x = -1;
 int touch_y = -1;
 
-enum View { HOME, PLOT, BITMAP, CONTROL };
+enum View { HOME, PLOT, BITMAP, CONTROL, SETTINGS };
 View currentView = HOME;
 View lastView = PLOT; // Force initial draw
 String suggestionText = "";
+int selectedPlantType = 0;
+const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
+bool isDropdownOpen = false;
 
 // Function forward declarations
 void handleBLEData();
 void startBleScan();
 void drawBitmapView();
 void drawControlView();
+void drawSettingsView();
 void handleTouch();
 void drawPlot();
 void drawLabels(float n, float p, float k, float ph, float humid, float sun);
-void drawPlantIcon();
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
