@@ -146,7 +146,11 @@ void drawSettingsView() {
 
 void drawBitmapView() {
     M5.Display.fillScreen(BLACK);
-    M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+    if (hasSuggestionBitmap) {
+        M5.Display.pushImage(96, 56, 128, 128, suggestionBitmap);
+    } else {
+        M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+    }
 
     M5.Display.setTextColor(WHITE);
     M5.Display.drawString("v", 155, 220); // Down arrow (to HOME)

@@ -58,6 +58,7 @@ void setupCharacteristics() {
   }
 
   plantTypeChar = peripheral.characteristic(uuidPlantType);
+  bitmapChar = peripheral.characteristic(uuidBitmap);
 }
 
 void handleBLEData() {
@@ -102,6 +103,36 @@ void handleBLEData() {
         drawSettingsView();
     }
   }
+}
+
+void fetchLlmBitmap() {
+    if (bitmapChar && bitmapChar.canWrite() && bitmapChar.canRead()) {
+        int total_size = 128 * 128 * 2;
+        int chunk_size = 225;
+        byte buffer[chunk_size];
+        int bytes_read = 0;
+
+        while (bytes_read < total_size) {
+            int32_t offset = bytes_read + 1;
+            bitmapChar.writeValue((byte*)&offset, sizeof(offset));
+            delay(100);
+
+            int len = bitmapChar.readValue(buffer, chunk_size);
+            if (len > 0) {
+                memcpy((byte*)suggestionBitmap + bytes_read, buffer, len);
+                bytes_read += len;
+            } else {
+                break;
+            }
+        }
+
+        if (bytes_read == total_size) {
+            hasSuggestionBitmap = true;
+            Serial.println("Bitmap received successfully");
+        } else {
+            Serial.printf("Error receiving bitmap, received %d bytes\n", bytes_read);
+        }
+    }
 }
 
 void fetchLlmResponse() {

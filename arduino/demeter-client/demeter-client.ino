@@ -73,6 +73,7 @@ void loop() {
       }
     } else if (status == 2) { // Ready
       fetchLlmResponse();
+      fetchLlmBitmap();
     }
   }
 
