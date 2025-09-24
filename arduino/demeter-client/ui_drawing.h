@@ -21,12 +21,18 @@ void drawHomeView() {
     M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS + LED_BORDER, M5.Display.color565(80, 80, 80)); // Border
     M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS, ledColor);
 
-    // Modern Swipe Indicators (Chevrons)
-    M5.Display.setTextColor(COLOR_TEXT);
-    M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);
-    M5.Display.drawString("v", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, M5.Display.height() - NAV_ARROW_SIZE - NAV_ARROW_PADDING);
-    M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
-    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+    // Navigation buttons
+    M5.Display.fillRoundRect(10, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Plot", 10 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
+
+    M5.Display.fillRoundRect(80, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Bitmap", 80 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
+
+    M5.Display.fillRoundRect(150, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Control", 150 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
+
+    M5.Display.fillRoundRect(220, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Settings", 220 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
 }
 
 void drawPlot() {
@@ -73,7 +79,8 @@ void drawPlot() {
             M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
         }
     }
-    M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2); // Back to Home
+    M5.Display.fillRoundRect(10, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Home", 10 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
 }
 
 void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
@@ -141,7 +148,8 @@ void drawSettingsView() {
         }
     }
 
-    M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+    M5.Display.fillRoundRect(10, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Home", 10 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
 }
 
 void drawBitmapView() {
@@ -152,12 +160,15 @@ void drawBitmapView() {
         M5.Display.pushImage(96, 56, 128, 128, myBitmap);
     }
 
-    M5.Display.setTextColor(WHITE);
-    M5.Display.drawString("v", 155, 220); // Down arrow (to HOME)
+    M5.Display.fillRoundRect(10, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Home", 10 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
 }
 
 void drawControlView() {
     M5.Display.fillScreen(COLOR_BACKGROUND);
+
+    M5.Display.fillRoundRect(10, 180, NAV_BUTTON_WIDTH, NAV_BUTTON_HEIGHT, NAV_BUTTON_RADIUS, COLOR_PRIMARY);
+    M5.Display.drawCenterString("Home", 10 + NAV_BUTTON_WIDTH / 2, 180 + NAV_BUTTON_HEIGHT / 2, COLOR_TEXT);
     M5.Display.setTextSize(2);
 
     // Draw Text Area for Suggestion
@@ -201,9 +212,4 @@ void drawControlView() {
     if (scrollOffset + maxLines < totalLines) {
         M5.Display.fillTriangle(290, 225, 300, 225, 295, 235, WHITE);
     }
-
-
-    // Swipe indicator
-    M5.Display.setTextColor(COLOR_TEXT);
-    M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING); // Up arrow (to HOME)
 }

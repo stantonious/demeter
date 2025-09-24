@@ -42,6 +42,10 @@ const int LED_BORDER = 2;
 const int NAV_ARROW_SIZE = 10;
 const int NAV_ARROW_PADDING = 10;
 
+const int NAV_BUTTON_WIDTH = 80;
+const int NAV_BUTTON_HEIGHT = 40;
+const int NAV_BUTTON_RADIUS = 10;
+
 BLEDevice peripheral;
 BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar, plantTypeChar, bitmapChar, bitmapStatusChar;
 
