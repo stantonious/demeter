@@ -73,6 +73,14 @@ void loop() {
       }
     } else if (status == 2) { // Ready
       fetchLlmResponse();
+    }
+  }
+
+  if (bitmapStatusChar && bitmapStatusChar.valueUpdated()) {
+    byte status;
+    bitmapStatusChar.readValue(&status, 1);
+    Serial.printf("Bitmap Status updated: %d\n", status);
+    if (status == 1) { // Ready
       fetchLlmBitmap();
     }
   }

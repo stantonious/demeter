@@ -59,6 +59,11 @@ void setupCharacteristics() {
 
   plantTypeChar = peripheral.characteristic(uuidPlantType);
   bitmapChar = peripheral.characteristic(uuidBitmap);
+  bitmapStatusChar = peripheral.characteristic(uuidBitmapStatus);
+  if (bitmapStatusChar && bitmapStatusChar.canSubscribe()) {
+    bitmapStatusChar.subscribe();
+    Serial.println("Subscribed to BitmapStatus");
+  }
 }
 
 void handleBLEData() {
@@ -104,6 +109,7 @@ void handleBLEData() {
     }
   }
 }
+
 
 void fetchLlmBitmap() {
     if (bitmapChar && bitmapChar.canWrite() && bitmapChar.canRead()) {
