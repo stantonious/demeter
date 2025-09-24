@@ -29,3 +29,13 @@ String wordWrap(String text, unsigned int lineLength) {
 
     return result;
 }
+
+int countLines(String text) {
+    int count = 0;
+    for (int i = 0; i < text.length(); i++) {
+        if (text.charAt(i) == '\n') {
+            count++;
+        }
+    }
+    return count + 1; // Add one for the last line
+}
