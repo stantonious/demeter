@@ -29,6 +29,8 @@ modbus_request = bytes.fromhex("01 03 00 1E 00 03 65 CD")
 # RS485 port and GPIO setup
 PORT = '/dev/serial0'
 BAUDRATE = 9600
+MOISTURE_ADC_DRY = 32768
+MOISTURE_ADC_WET = 15073
 TX_ENABLE_PIN = 18  # GPIO18 controls DE/RE
 
 # Setup GPIO
@@ -797,7 +799,14 @@ class ADSSensor(threading.Thread):
         try:
             # Scale raw ADC value (0-65535) to a percentage (0-100)
             g_humidity_val = (self.chan0.value / 65535.0) * 100.0
-            g_moisture_val = (self.chan2.value / 65535.0) * 100.0
+
+            # Scale and invert moisture value based on calibration
+            raw_moisture = self.chan2.value
+            # Handles the inverted reading (lower ADC value means more moisture)
+            moisture_scaled = 100.0 * (MOISTURE_ADC_DRY - raw_moisture) / (MOISTURE_ADC_DRY - MOISTURE_ADC_WET)
+
+            # Clamp the value between 0 and 100
+            g_moisture_val = max(0.0, min(100.0, moisture_scaled))
         except Exception as e:
             print(f"ADS sensor error: {e}")
 
