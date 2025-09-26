@@ -31,6 +31,8 @@ PORT = '/dev/serial0'
 BAUDRATE = 9600
 MOISTURE_ADC_DRY = 32768
 MOISTURE_ADC_WET = 15073
+HUMIDITY_SLOPE = 0.0021658
+HUMIDITY_INTERCEPT = -41.94
 TX_ENABLE_PIN = 18  # GPIO18 controls DE/RE
 
 # Setup GPIO
@@ -797,8 +799,10 @@ class ADSSensor(threading.Thread):
         global g_humidity_val
         global g_moisture_val
         try:
-            # Scale raw ADC value (0-65535) to a percentage (0-100)
-            g_humidity_val = (self.chan0.value / 65535.0) * 100.0
+            # Scale raw ADC value to relative humidity percentage
+            raw_humidity = self.chan0.value
+            humidity_scaled = raw_humidity * HUMIDITY_SLOPE + HUMIDITY_INTERCEPT
+            g_humidity_val = max(0.0, min(100.0, humidity_scaled))
 
             # Scale and invert moisture value based on calibration
             raw_moisture = self.chan2.value
