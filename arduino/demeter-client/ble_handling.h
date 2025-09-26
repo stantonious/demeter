@@ -20,6 +20,7 @@ void setupCharacteristics() {
   phChar = peripheral.characteristic(uuidPh);
   humidChar = peripheral.characteristic(uuidHumid);
   sunChar = peripheral.characteristic(uuidSun);
+  moistureChar = peripheral.characteristic(uuidMoisture);
 
   if (nChar && nChar.canSubscribe()) {
     nChar.subscribe();
@@ -49,6 +50,11 @@ void setupCharacteristics() {
   if (sunChar && sunChar.canSubscribe()) {
     sunChar.subscribe();
     Serial.println("Subscribed to Sun");
+  }
+
+  if (moistureChar && moistureChar.canSubscribe()) {
+    moistureChar.subscribe();
+    Serial.println("Subscribed to Moisture");
   }
 
   llmStatusChar = peripheral.characteristic(uuidLlmStatus);
@@ -93,11 +99,17 @@ void handleBLEData() {
     needsRedraw = true;
   }
 
+  if (moistureChar.valueUpdated()) {
+    memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
+    moistureBuffer[bufferIndex] = lastMoisture;
+    needsRedraw = true;
+  }
+
   if (needsRedraw) {
     bufferIndex = (bufferIndex + 1) % maxPoints;
     if (currentView == PLOT) {
         drawPlot();
-        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
+        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture);
     } else if (currentView == SETTINGS) {
         drawSettingsView();
     }

@@ -14,6 +14,7 @@ const char* uuidLlm = "12345678-1234-5678-1234-56789abcdef6";
 const char* uuidPh = "12345678-1234-5678-1234-56789abcdef7";
 const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
 const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
+const char* uuidMoisture = "12345678-1234-5678-1234-56789abcdefb";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 const char* uuidPlantType = "12345678-1234-5678-1234-56789abcdefa";
 
@@ -43,14 +44,14 @@ const int NAV_ARROW_PADDING = 10;
 const int NAV_DOT_RADIUS = 4;
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar, plantTypeChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, llmStatusChar, plantTypeChar;
 
 const int maxPoints = 160;
-float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints];
+float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints], moistureBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
 uint16_t ledColor = COLOR_MUTED;
-float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0;
+float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0, lastMoisture = 0;
 unsigned long lastHeartbeatTime = 0;
 bool homeViewDirty = false;
 
@@ -78,7 +79,7 @@ void drawControlView();
 void drawSettingsView();
 void handleTouch();
 void drawPlot();
-void drawLabels(float n, float p, float k, float ph, float humid, float sun);
+void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture);
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();

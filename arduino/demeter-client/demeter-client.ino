@@ -19,6 +19,7 @@ void setup() {
     phBuffer[i] = 0;
     humidBuffer[i] = 0;
     sunBuffer[i] = 0;
+    moistureBuffer[i] = 0;
   }
 
   if (!BLE.begin()) {
