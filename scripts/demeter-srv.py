@@ -12,6 +12,10 @@ import serial
 import struct
 import RPi.GPIO as GPIO
 from ollama import generate
+import board
+import busio
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -38,9 +42,10 @@ pot_val = 0.
 nit_val = 0.
 phr_val = 0.
 ph_val = 7.0
-humid_val = 50.0
 sun_val = 8.0
 g_plant_type = 'ground cover'
+g_humidity_val = 0.0
+g_moisture_val = 0.0
 
 
 class Characteristic(dbus.service.Object):
@@ -169,7 +174,7 @@ class HumidChar(dbus.service.Object):
         self.flags = flags
         self.service = service
         self.notifying = False
-        self.value = 50.0  # Initial float value
+        self.value = 0.0  # Initial float value
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -206,7 +211,7 @@ class HumidChar(dbus.service.Object):
     def _notify(self):
         if not self.notifying:
             return False
-        self.value = humid_val
+        self.value = g_humidity_val
         packed = struct.pack('<f', self.value)
         self.PropertiesChanged("org.bluez.GattCharacteristic1",
                                {"Value": [dbus.Byte(b) for b in packed]}, [])
@@ -216,6 +221,64 @@ class HumidChar(dbus.service.Object):
                          signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
+
+
+class GroundMoistureChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 0.0  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = g_moisture_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
 
 class SunChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -714,6 +777,35 @@ class Service(dbus.service.Object):
     def get_path(self):
         return dbus.ObjectPath(self.path)
 
+
+class ADSSensor(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.duty_cycle_delay = .05
+        self.running = True
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.ads = ADS.ADS1115(self.i2c)
+        self.chan0 = AnalogIn(self.ads, ADS.P0)
+        self.chan2 = AnalogIn(self.ads, ADS.P2)
+
+    def stop(self):
+        self.running = False
+
+    def duty_cycle(self):
+        global g_humidity_val
+        global g_moisture_val
+        try:
+            g_humidity_val = self.chan0.value
+            g_moisture_val = self.chan2.value
+        except Exception as e:
+            print(f"ADS sensor error: {e}")
+
+    def run(self):
+        while self.running:
+            self.duty_cycle()
+            time.sleep(self.duty_cycle_delay)
+
+
 class Application(dbus.service.Object):
     def __init__(self, bus):
         self.path = "/"
@@ -745,7 +837,7 @@ class NpkSensor(threading.Thread):
         self.running = True
 
 
-    def stop():
+    def stop(self):
         self.running = False
 
     def parse_response(self,response):
@@ -844,6 +936,11 @@ def main():
     plant_type_char = PlantTypeChar(bus, 10,
     "12345678-1234-5678-1234-56789abcdefa", ["write"], service)
     service.characteristics.append(plant_type_char)
+
+    ground_moisture_char = GroundMoistureChar(bus, 11,
+    "12345678-1234-5678-1234-56789abcdefb", ["read", "notify"], service)
+    service.characteristics.append(ground_moisture_char)
+
     service.llm_status_char = llm_status_char
     app.add_service(service)
 
@@ -857,8 +954,13 @@ def main():
 
     npk = NpkSensor()
     npk.start()
+
+    ads_sensor = ADSSensor()
+    ads_sensor.start()
+
     GLib.MainLoop().run()
     npk.stop()
+    ads_sensor.stop()
 
 if __name__ == "__main__":
     main()
