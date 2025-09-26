@@ -67,46 +67,43 @@ void setupCharacteristics() {
 }
 
 void handleBLEData() {
-  bool needsRedraw = false;
-  if (nChar.valueUpdated()) {
-    memcpy(&lastN, nChar.value(), sizeof(float));
+  bool anyValueUpdated = nChar.valueUpdated() || kChar.valueUpdated() || pChar.valueUpdated() ||
+                         phChar.valueUpdated() || humidChar.valueUpdated() || sunChar.valueUpdated() ||
+                         moistureChar.valueUpdated();
+
+  if (anyValueUpdated) {
+    if (nChar.valueUpdated()) {
+      memcpy(&lastN, nChar.value(), sizeof(float));
+    }
+    if (kChar.valueUpdated()) {
+      memcpy(&lastK, kChar.value(), sizeof(float));
+    }
+    if (pChar.valueUpdated()) {
+      memcpy(&lastP, pChar.value(), sizeof(float));
+    }
+    if (phChar.valueUpdated()) {
+      memcpy(&lastPh, phChar.value(), sizeof(float));
+    }
+    if (humidChar.valueUpdated()) {
+      memcpy(&lastHumid, humidChar.value(), sizeof(float));
+    }
+    if (sunChar.valueUpdated()) {
+      memcpy(&lastSun, sunChar.value(), sizeof(float));
+    }
+    if (moistureChar.valueUpdated()) {
+      memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
+    }
+
     nBuffer[bufferIndex] = lastN;
-    needsRedraw = true;
-  }
-  if (kChar.valueUpdated()) {
-    memcpy(&lastK, kChar.value(), sizeof(float));
     kBuffer[bufferIndex] = lastK;
-    needsRedraw = true;
-  }
-  if (pChar.valueUpdated()) {
-    memcpy(&lastP, pChar.value(), sizeof(float));
     pBuffer[bufferIndex] = lastP;
-    needsRedraw = true;
-  }
-  if (phChar.valueUpdated()) {
-    memcpy(&lastPh, phChar.value(), sizeof(float));
     phBuffer[bufferIndex] = lastPh;
-    needsRedraw = true;
-  }
-  if (humidChar.valueUpdated()) {
-    memcpy(&lastHumid, humidChar.value(), sizeof(float));
     humidBuffer[bufferIndex] = lastHumid;
-    needsRedraw = true;
-  }
-  if (sunChar.valueUpdated()) {
-    memcpy(&lastSun, sunChar.value(), sizeof(float));
     sunBuffer[bufferIndex] = lastSun;
-    needsRedraw = true;
-  }
-
-  if (moistureChar.valueUpdated()) {
-    memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
     moistureBuffer[bufferIndex] = lastMoisture;
-    needsRedraw = true;
-  }
 
-  if (needsRedraw) {
     bufferIndex = (bufferIndex + 1) % maxPoints;
+
     if (currentView == PLOT) {
         drawPlot();
         drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture);
