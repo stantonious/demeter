@@ -67,12 +67,12 @@ void drawPlot() {
       int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60) + j;
       M5.Display.drawLine(x1, y1_ph, x2, y2_ph, phColor);
 
-      int y1_humid = map(humidBuffer[idx1], 0, 65535, 220, 60) + j;
-      int y2_humid = map(humidBuffer[idx2], 0, 65535, 220, 60) + j;
+      int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60) + j;
+      int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60) + j;
       M5.Display.drawLine(x1, y1_humid, x2, y2_humid, humidColor);
 
-      int y1_moisture = map(moistureBuffer[idx1], 0, 65535, 220, 60) + j;
-      int y2_moisture = map(moistureBuffer[idx2], 0, 65535, 220, 60) + j;
+      int y1_moisture = map(moistureBuffer[idx1], 0, 100, 220, 60) + j;
+      int y2_moisture = map(moistureBuffer[idx2], 0, 100, 220, 60) + j;
       M5.Display.drawLine(x1, y1_moisture, x2, y2_moisture, moistureColor);
 
       int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60) + j;
@@ -116,7 +116,7 @@ void drawLabels(float n, float p, float k, float ph, float humid, float sun, flo
 
   M5.Display.setTextColor(humidColor);
   M5.Display.setCursor(110, 25);
-  M5.Display.printf("Hum: %.0f", humid);
+  M5.Display.printf("Hum: %.0f%%", humid);
 
   M5.Display.setTextColor(sunColor);
   M5.Display.setCursor(210, 25);
@@ -125,7 +125,7 @@ void drawLabels(float n, float p, float k, float ph, float humid, float sun, flo
   // Row 3
   M5.Display.setTextColor(moistureColor);
   M5.Display.setCursor(10, 45);
-  M5.Display.printf("Moist: %.0f", moisture);
+  M5.Display.printf("Moist: %.0f%%", moisture);
 
   M5.Display.setTextColor(WHITE);  // Reset color
 }

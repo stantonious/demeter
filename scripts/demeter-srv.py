@@ -795,8 +795,9 @@ class ADSSensor(threading.Thread):
         global g_humidity_val
         global g_moisture_val
         try:
-            g_humidity_val = self.chan0.value
-            g_moisture_val = self.chan2.value
+            # Scale raw ADC value (0-65535) to a percentage (0-100)
+            g_humidity_val = (self.chan0.value / 65535.0) * 100.0
+            g_moisture_val = (self.chan2.value / 65535.0) * 100.0
         except Exception as e:
             print(f"ADS sensor error: {e}")
 
