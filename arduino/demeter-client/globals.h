@@ -25,6 +25,7 @@ const uint16_t COLOR_SUCCESS = GREEN;
 const uint16_t COLOR_WARNING = YELLOW;
 const uint16_t COLOR_ERROR = RED;
 const uint16_t COLOR_MUTED = DARKGREY;
+const uint16_t COLOR_TEAL = 0x0493;
 
 const int BUTTON_WIDTH = 120;
 const int BUTTON_HEIGHT = 40;
@@ -39,6 +40,7 @@ const int LED_BORDER = 2;
 
 const int NAV_ARROW_SIZE = 25;
 const int NAV_ARROW_PADDING = 10;
+const int NAV_DOT_RADIUS = 4;
 
 BLEDevice peripheral;
 BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, llmStatusChar, plantTypeChar;
@@ -70,6 +72,7 @@ bool isDropdownOpen = false;
 // Function forward declarations
 void handleBLEData();
 void startBleScan();
+void drawConnectionStatus();
 void drawBitmapView();
 void drawControlView();
 void drawSettingsView();

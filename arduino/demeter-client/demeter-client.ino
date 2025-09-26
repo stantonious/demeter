@@ -31,6 +31,10 @@ void loop() {
   M5.update();
   handleTouch();
 
+  if (M5.BtnB.wasPressed()) {
+    currentView = HOME;
+  }
+
   if (currentView != lastView) {
     lastView = currentView;
     switch (currentView) {

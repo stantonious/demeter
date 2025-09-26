@@ -3,12 +3,19 @@
 #include "globals.h"
 #include <M5Unified.h>
 
+void drawConnectionStatus() {
+  // Draw Status LED with a border
+  M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS + LED_BORDER, M5.Display.color565(80, 80, 80));  // Border
+  M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS, ledColor);
+}
+
 void drawHomeView() {
   M5.Display.fillScreen(COLOR_BACKGROUND);
+  drawConnectionStatus();
   M5.Display.setTextSize(2);
 
   // Draw Connect/Disconnect Button
-  uint16_t primaryColor = connected ? COLOR_ERROR : COLOR_SUCCESS;
+  uint16_t primaryColor = connected ? COLOR_MUTED : COLOR_SUCCESS;
   uint16_t shadowColor = M5.Display.color565(50, 50, 50);
 
   M5.Display.fillRoundRect(BUTTON_X + 2, BUTTON_Y + 2, BUTTON_WIDTH, BUTTON_HEIGHT, BUTTON_RADIUS, shadowColor);  // Shadow
@@ -17,16 +24,11 @@ void drawHomeView() {
   const char* txt = connected ? "Disconnect" : "Connect";
   M5.Display.drawCenterString(txt, BUTTON_X + BUTTON_WIDTH / 2, BUTTON_Y + BUTTON_HEIGHT / 2);
 
-  // Draw Status LED with a border
-  M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS + LED_BORDER, M5.Display.color565(80, 80, 80));  // Border
-  M5.Display.fillCircle(LED_X, LED_Y, LED_RADIUS, ledColor);
-
-  // Modern Swipe Indicators (Chevrons)
-  M5.Display.setTextColor(COLOR_TEXT);
-  M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);
-  M5.Display.drawString("v", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, M5.Display.height() - NAV_ARROW_SIZE - NAV_ARROW_PADDING);
-  M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
-  M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+  // Navigation Dots
+  M5.Display.fillCircle(M5.Display.width() / 2, NAV_ARROW_PADDING + NAV_DOT_RADIUS, NAV_DOT_RADIUS, COLOR_TEAL); // Up
+  M5.Display.fillCircle(M5.Display.width() / 2, M5.Display.height() - NAV_ARROW_PADDING - NAV_DOT_RADIUS, NAV_DOT_RADIUS, COLOR_TEAL); // Down
+  M5.Display.fillCircle(M5.Display.width() - NAV_ARROW_PADDING - NAV_DOT_RADIUS, M5.Display.height() / 2, NAV_DOT_RADIUS, COLOR_TEAL); // Right
+  M5.Display.fillCircle(NAV_ARROW_PADDING + NAV_DOT_RADIUS, M5.Display.height() / 2, NAV_DOT_RADIUS, COLOR_TEAL); // Left
 }
 
 void drawPlot() {
@@ -73,7 +75,7 @@ void drawPlot() {
       M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
     }
   }
-  M5.Display.drawString("<", NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);
+  M5.Display.fillCircle(NAV_ARROW_PADDING + NAV_DOT_RADIUS, M5.Display.height() / 2, NAV_DOT_RADIUS, COLOR_TEAL); // Left
 }
 
 void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
@@ -121,10 +123,12 @@ void drawPlotView() {
   M5.Display.fillScreen(COLOR_BACKGROUND);
   drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
   drawPlot();
+  drawConnectionStatus();
 }
 
 void drawSettingsView() {
   M5.Display.fillScreen(COLOR_BACKGROUND);
+  drawConnectionStatus();
   M5.Display.setTextColor(COLOR_TEXT);
   M5.Display.setTextSize(2);
   M5.Display.drawString("Plant Type", 50, 20);
@@ -140,19 +144,20 @@ void drawSettingsView() {
       M5.Display.drawString(plantTypes[i], 60, 85 + i * 30);
     }
   }
-  M5.Display.drawString(">", M5.Display.width() - NAV_ARROW_SIZE - NAV_ARROW_PADDING, M5.Display.height() / 2 - NAV_ARROW_SIZE / 2);  // Back to Home
+  M5.Display.fillCircle(M5.Display.width() - NAV_ARROW_PADDING - NAV_DOT_RADIUS, M5.Display.height() / 2, NAV_DOT_RADIUS, COLOR_TEAL); // Right
 }
 
 void drawBitmapView() {
   M5.Display.fillScreen(BLACK);
   M5.Display.pushImage(96, 56, 128, 128, myBitmap);
+  drawConnectionStatus();
 
-  M5.Display.setTextColor(WHITE);
-  M5.Display.drawString("^", M5.Display.width() / 2 - NAV_ARROW_SIZE / 2, NAV_ARROW_PADDING);  // Up arrow (to HOME)
+  M5.Display.fillCircle(M5.Display.width() / 2, NAV_ARROW_PADDING + NAV_DOT_RADIUS, NAV_DOT_RADIUS, COLOR_TEAL); // Up
 }
 
 void drawControlView() {
   M5.Display.fillScreen(COLOR_BACKGROUND);
+  drawConnectionStatus();
   M5.Display.setTextSize(2);
 
   // Draw Text Area for Suggestion
@@ -199,6 +204,5 @@ void drawControlView() {
 
 
   // Swipe indicator
-  M5.Display.setTextColor(COLOR_TEXT);
-  M5.Display.drawString("v", 155, 220);  // Down arrow (to HOME)
+  M5.Display.fillCircle(M5.Display.width() / 2, M5.Display.height() - NAV_ARROW_PADDING - NAV_DOT_RADIUS, NAV_DOT_RADIUS, COLOR_TEAL); // Down
 }
