@@ -47,8 +47,9 @@ void drawPlot() {
   for (int i = 1; i < maxPoints; i++) {
     int idx1 = (bufferIndex + i - 1) % maxPoints;
     int idx2 = (bufferIndex + i) % maxPoints;
-    int x1 = 10 + (i - 1) * 2;  // Stretch the plot
-    int x2 = 10 + i * 2;
+    float x_scale = 299.0f / (maxPoints - 1);
+    int x1 = 10 + (i - 1) * x_scale;
+    int x2 = 10 + i * x_scale;
 
     // Draw thicker lines by drawing three adjacent lines
     for (int j = -1; j <= 1; j++) {
