@@ -38,12 +38,7 @@ void loop() {
         drawHomeView();
         break;
       case PLOT:
-        if (connected) {
-          drawPlotView();
-        } else {
-          M5.Display.fillScreen(BLACK);
-          // Display nothing when disconnected, matching other views
-        }
+        drawPlotView();
         break;
       case BITMAP:
         drawBitmapView();

@@ -37,7 +37,7 @@ const int LED_Y = 20;
 const int LED_RADIUS = 10;
 const int LED_BORDER = 2;
 
-const int NAV_ARROW_SIZE = 10;
+const int NAV_ARROW_SIZE = 25;
 const int NAV_ARROW_PADDING = 10;
 
 BLEDevice peripheral;
