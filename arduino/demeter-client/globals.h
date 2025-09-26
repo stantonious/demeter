@@ -70,6 +70,14 @@ int selectedPlantType = 0;
 const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
 bool isDropdownOpen = false;
 
+enum PlotState { ALL, N, K, P, PH, HUMID, SUN, MOISTURE };
+PlotState currentPlotState = ALL;
+
+const int TOGGLE_BUTTON_X = 250;
+const int TOGGLE_BUTTON_Y = 220;
+const int TOGGLE_BUTTON_WIDTH = 60;
+const int TOGGLE_BUTTON_HEIGHT = 20;
+
 // Function forward declarations
 void handleBLEData();
 void startBleScan();
