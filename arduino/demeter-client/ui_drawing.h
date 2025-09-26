@@ -32,6 +32,7 @@ void drawHomeView() {
 }
 
 void drawPlot() {
+  M5.Display.fillRect(10, 60, 300, 160, COLOR_BACKGROUND);
   M5.Display.drawRect(10, 60, 300, 160, COLOR_TEXT);  // Plot border
 
   // Define a modern color palette
