@@ -89,7 +89,7 @@ void drawControlView();
 void drawSettingsView();
 void handleTouch();
 void drawPlot();
-void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture);
+void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture, float light);
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
