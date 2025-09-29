@@ -11,12 +11,15 @@ import numpy as np
 import serial
 import struct
 import RPi.GPIO as GPIO
-from ollama import generate
+from openai import OpenAI
 import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_bh1750
+from config import OPENAI_API_KEY
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -594,32 +597,37 @@ def generate_plant_prompt(
     )
     return prompt
 
-ollama_model = 'tinyllama'
 def generate_llm_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
         return
 
     is_generating = True
-    llm_status_char.set_status(1) # Generating
-    print('starting ollama req in background')
+    llm_status_char.set_status(1)  # Generating
+    print('starting openai req in background')
     start_time = time.time()
 
-    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,g_llm_prompt))
+    counter_thread = threading.Thread(target=update_generating_status, args=(start_time, g_llm_prompt))
     counter_thread.daemon = True
     counter_thread.start()
 
     try:
-        #response = generate(ollama_model, prompt,options={'num_predict':100}).response
-        response = generate(ollama_model, prompt).response
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        response = completion.choices[0].message.content
         current_llm_response = response
-        print('got ollama res in background:', current_llm_response)
+        print('got openai res in background:', current_llm_response)
     except Exception as e:
-        print(f"Error in ollama generation: {e}")
+        print(f"Error in openai generation: {e}")
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
-        llm_status_char.set_status(2) # Ready
+        llm_status_char.set_status(2)  # Ready
 
 location_lat="39.5186"
 location_lon="-104.7614"
