@@ -16,6 +16,7 @@ import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
+import adafruit_bh1750
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -50,6 +51,7 @@ sun_val = 8.0
 g_plant_type = 'ground cover'
 g_humidity_val = 0.0
 g_moisture_val = 0.0
+g_light_val = 0.0
 
 
 class Characteristic(dbus.service.Object):
@@ -106,6 +108,63 @@ class Characteristic(dbus.service.Object):
         print ('notif')
         self.PropertiesChanged("org.bluez.GattCharacteristic1",
                                {"Value": [(sensor_val + 1) % 255]}, [])
+        return True
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties",
+                         signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+
+class LightChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.value = 0.0  # Initial float value
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<f', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    def _notify(self):
+        if not self.notifying:
+            return False
+        self.value = g_light_val
+        packed = struct.pack('<f', self.value)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
         return True
 
     @dbus.service.signal("org.freedesktop.DBus.Properties",
@@ -820,6 +879,30 @@ class ADSSensor(threading.Thread):
             time.sleep(self.duty_cycle_delay)
 
 
+class BH1750Sensor(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.duty_cycle_delay = .05
+        self.running = True
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        self.sensor = adafruit_bh1750.BH1750(self.i2c)
+
+    def stop(self):
+        self.running = False
+
+    def duty_cycle(self):
+        global g_light_val
+        try:
+            g_light_val = self.sensor.lux
+        except Exception as e:
+            print(f"BH1750 sensor error: {e}")
+
+    def run(self):
+        while self.running:
+            self.duty_cycle()
+            time.sleep(self.duty_cycle_delay)
+
+
 class Application(dbus.service.Object):
     def __init__(self, bus):
         self.path = "/"
@@ -955,6 +1038,10 @@ def main():
     "12345678-1234-5678-1234-56789abcdefb", ["read", "notify"], service)
     service.characteristics.append(ground_moisture_char)
 
+    light_char = LightChar(bus, 12,
+    "12345678-1234-5678-1234-56789abcdefc", ["read", "notify"], service)
+    service.characteristics.append(light_char)
+
     service.llm_status_char = llm_status_char
     app.add_service(service)
 
@@ -972,9 +1059,13 @@ def main():
     ads_sensor = ADSSensor()
     ads_sensor.start()
 
+    bh1750_sensor = BH1750Sensor()
+    bh1750_sensor.start()
+
     GLib.MainLoop().run()
     npk.stop()
     ads_sensor.stop()
+    bh1750_sensor.stop()
 
 if __name__ == "__main__":
     main()
