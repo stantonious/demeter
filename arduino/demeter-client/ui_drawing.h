@@ -32,6 +32,7 @@ void drawHomeView() {
 }
 
 void drawPlot() {
+  M5.Display.fillRect(10, 60, 300, 160, COLOR_BACKGROUND);
   M5.Display.drawRect(10, 60, 300, 160, COLOR_TEXT);  // Plot border
 
   // Define a modern color palette
@@ -41,54 +42,69 @@ void drawPlot() {
   uint16_t phColor = M5.Display.color565(244, 67, 54);     // Red
   uint16_t humidColor = M5.Display.color565(0, 188, 212);  // Cyan
   uint16_t sunColor = M5.Display.color565(255, 235, 59);   // Yellow
+  uint16_t moistureColor = M5.Display.color565(160, 82, 45); // Sienna
 
   for (int i = 1; i < maxPoints; i++) {
     int idx1 = (bufferIndex + i - 1) % maxPoints;
     int idx2 = (bufferIndex + i) % maxPoints;
-    int x1 = 10 + (i - 1) * 2;  // Stretch the plot
-    int x2 = 10 + i * 2;
+    float x_scale = 299.0f / (maxPoints - 1);
+    int x1 = 10 + (i - 1) * x_scale;
+    int x2 = 10 + i * x_scale;
 
     // Draw thicker lines by drawing three adjacent lines
     for (int j = -1; j <= 1; j++) {
-      int y1_n = map(nBuffer[idx1], 0, 100, 220, 60) + j;
-      int y2_n = map(nBuffer[idx2], 0, 100, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_n, x2, y2_n, nColor);
-
-      int y1_k = map(kBuffer[idx1], 0, 100, 220, 60) + j;
-      int y2_k = map(kBuffer[idx2], 0, 100, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_k, x2, y2_k, kColor);
-
-      int y1_p = map(pBuffer[idx1], 0, 100, 220, 60) + j;
-      int y2_p = map(pBuffer[idx2], 0, 100, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_p, x2, y2_p, pColor);
-
-      int y1_ph = map(phBuffer[idx1], 0, 14, 220, 60) + j;
-      int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_ph, x2, y2_ph, phColor);
-
-      int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60) + j;
-      int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_humid, x2, y2_humid, humidColor);
-
-      int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60) + j;
-      int y2_sun = map(sunBuffer[idx2], 0, 24, 220, 60) + j;
-      M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
+      if (currentPlotState == ALL || currentPlotState == N) {
+        int y1_n = map(nBuffer[idx1], 0, 100, 220, 60) + j;
+        int y2_n = map(nBuffer[idx2], 0, 100, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_n, x2, y2_n, nColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == K) {
+        int y1_k = map(kBuffer[idx1], 0, 100, 220, 60) + j;
+        int y2_k = map(kBuffer[idx2], 0, 100, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_k, x2, y2_k, kColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == P) {
+        int y1_p = map(pBuffer[idx1], 0, 100, 220, 60) + j;
+        int y2_p = map(pBuffer[idx2], 0, 100, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_p, x2, y2_p, pColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == PH) {
+        int y1_ph = map(phBuffer[idx1], 0, 14, 220, 60) + j;
+        int y2_ph = map(phBuffer[idx2], 0, 14, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_ph, x2, y2_ph, phColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == HUMID) {
+        int y1_humid = map(humidBuffer[idx1], 0, 100, 220, 60) + j;
+        int y2_humid = map(humidBuffer[idx2], 0, 100, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_humid, x2, y2_humid, humidColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == MOISTURE) {
+        int y1_moisture = map(moistureBuffer[idx1], 0, 100, 220, 60) + j;
+        int y2_moisture = map(moistureBuffer[idx2], 0, 100, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_moisture, x2, y2_moisture, moistureColor);
+      }
+      if (currentPlotState == ALL || currentPlotState == SUN) {
+        int y1_sun = map(sunBuffer[idx1], 0, 24, 220, 60) + j;
+        int y2_sun = map(sunBuffer[idx2], 0, 24, 220, 60) + j;
+        M5.Display.drawLine(x1, y1_sun, x2, y2_sun, sunColor);
+      }
     }
   }
   M5.Display.fillCircle(NAV_ARROW_PADDING + NAV_DOT_RADIUS, M5.Display.height() / 2, NAV_DOT_RADIUS, COLOR_TEAL); // Left
 }
 
-void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
-  M5.Display.fillRect(0, 0, 320, 40, COLOR_BACKGROUND);
+void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture) {
+  M5.Display.fillRect(0, 0, 320, 60, COLOR_BACKGROUND);
   M5.Display.setTextSize(1.5);
 
   // Define colors to match the plot
-  uint16_t nColor = M5.Display.color565(3, 169, 244);
-  uint16_t pColor = M5.Display.color565(76, 175, 80);
-  uint16_t kColor = M5.Display.color565(255, 152, 0);
-  uint16_t phColor = M5.Display.color565(244, 67, 54);
-  uint16_t humidColor = M5.Display.color565(0, 188, 212);
-  uint16_t sunColor = M5.Display.color565(255, 235, 59);
+  uint16_t nColor = (currentPlotState == ALL || currentPlotState == N) ? M5.Display.color565(3, 169, 244) : COLOR_MUTED;
+  uint16_t pColor = (currentPlotState == ALL || currentPlotState == P) ? M5.Display.color565(76, 175, 80) : COLOR_MUTED;
+  uint16_t kColor = (currentPlotState == ALL || currentPlotState == K) ? M5.Display.color565(255, 152, 0) : COLOR_MUTED;
+  uint16_t phColor = (currentPlotState == ALL || currentPlotState == PH) ? M5.Display.color565(244, 67, 54) : COLOR_MUTED;
+  uint16_t humidColor = (currentPlotState == ALL || currentPlotState == HUMID) ? M5.Display.color565(0, 188, 212) : COLOR_MUTED;
+  uint16_t sunColor = (currentPlotState == ALL || currentPlotState == SUN) ? M5.Display.color565(255, 235, 59) : COLOR_MUTED;
+  uint16_t moistureColor = (currentPlotState == ALL || currentPlotState == MOISTURE) ? M5.Display.color565(160, 82, 45) : COLOR_MUTED; // Sienna
 
   // Row 1
   M5.Display.setTextColor(nColor);
@@ -110,20 +126,42 @@ void drawLabels(float n, float p, float k, float ph, float humid, float sun) {
 
   M5.Display.setTextColor(humidColor);
   M5.Display.setCursor(110, 25);
-  M5.Display.printf("Hum: %.1f%%", humid);
+  M5.Display.printf("Hum: %.0f%%", humid);
 
   M5.Display.setTextColor(sunColor);
   M5.Display.setCursor(210, 25);
   M5.Display.printf("Sun: %.1fhr", sun);
+
+  // Row 3
+  M5.Display.setTextColor(moistureColor);
+  M5.Display.setCursor(10, 45);
+  M5.Display.printf("Moist: %.0f%%", moisture);
 
   M5.Display.setTextColor(WHITE);  // Reset color
 }
 
 void drawPlotView() {
   M5.Display.fillScreen(COLOR_BACKGROUND);
-  drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun);
+  drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture);
   drawPlot();
   drawConnectionStatus();
+
+  // Draw Toggle Button
+  M5.Display.fillRoundRect(TOGGLE_BUTTON_X, TOGGLE_BUTTON_Y, TOGGLE_BUTTON_WIDTH, TOGGLE_BUTTON_HEIGHT, 5, COLOR_PRIMARY);
+  M5.Display.setTextColor(COLOR_TEXT);
+  M5.Display.setTextSize(1.5);
+  String buttonLabel = "All";
+  switch (currentPlotState) {
+    case N: buttonLabel = "N"; break;
+    case K: buttonLabel = "K"; break;
+    case P: buttonLabel = "P"; break;
+    case PH: buttonLabel = "pH"; break;
+    case HUMID: buttonLabel = "Hum"; break;
+    case SUN: buttonLabel = "Sun"; break;
+    case MOISTURE: buttonLabel = "Moist"; break;
+    case ALL: buttonLabel = "All"; break;
+  }
+  M5.Display.drawCenterString(buttonLabel, TOGGLE_BUTTON_X + TOGGLE_BUTTON_WIDTH / 2, TOGGLE_BUTTON_Y + TOGGLE_BUTTON_HEIGHT / 2 - 4);
 }
 
 void drawSettingsView() {

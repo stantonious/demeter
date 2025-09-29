@@ -99,11 +99,12 @@ void handleTouch() {
             currentView = SETTINGS;
           }  // Left
         } else if (currentView == PLOT) {
-
           if (detail.x < NAV_ARROW_SIZE * 2 + NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; }  // Back to Home
 
-
-
+          if (detail.x > TOGGLE_BUTTON_X && detail.x < TOGGLE_BUTTON_X + TOGGLE_BUTTON_WIDTH && detail.y > TOGGLE_BUTTON_Y && detail.y < TOGGLE_BUTTON_Y + TOGGLE_BUTTON_HEIGHT) {
+            currentPlotState = (PlotState)((currentPlotState + 1) % 8); // Cycle through ALL, N, K, P, PH, HUMID, SUN, MOISTURE
+            drawPlotView();
+          }
         } else if (currentView == SETTINGS) {
           if (detail.x > M5.Display.width() - NAV_ARROW_SIZE * 2 - NAV_ARROW_PADDING && detail.y > M5.Display.height() / 2 - NAV_ARROW_SIZE && detail.y < M5.Display.height() / 2 + NAV_ARROW_SIZE) { currentView = HOME; }  // Back to Home
 

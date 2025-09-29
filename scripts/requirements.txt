@@ -3,3 +3,4 @@ dbus-python
 PyGObject
 pyserial
 ollama
+adafruit-circuitpython-ads1x15
