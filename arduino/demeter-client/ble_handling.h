@@ -21,6 +21,7 @@ void setupCharacteristics() {
   humidChar = peripheral.characteristic(uuidHumid);
   sunChar = peripheral.characteristic(uuidSun);
   moistureChar = peripheral.characteristic(uuidMoisture);
+  lightChar = peripheral.characteristic(uuidLight);
 
   if (nChar && nChar.canSubscribe()) {
     nChar.subscribe();
@@ -57,6 +58,11 @@ void setupCharacteristics() {
     Serial.println("Subscribed to Moisture");
   }
 
+  if (lightChar && lightChar.canSubscribe()) {
+    lightChar.subscribe();
+    Serial.println("Subscribed to Light");
+  }
+
   llmStatusChar = peripheral.characteristic(uuidLlmStatus);
   if (llmStatusChar && llmStatusChar.canSubscribe()) {
     llmStatusChar.subscribe();
@@ -69,7 +75,7 @@ void setupCharacteristics() {
 void handleBLEData() {
   bool anyValueUpdated = nChar.valueUpdated() || kChar.valueUpdated() || pChar.valueUpdated() ||
                          phChar.valueUpdated() || humidChar.valueUpdated() || sunChar.valueUpdated() ||
-                         moistureChar.valueUpdated();
+                         moistureChar.valueUpdated() || lightChar.valueUpdated();
 
   if (anyValueUpdated) {
     if (nChar.valueUpdated()) {
@@ -93,6 +99,9 @@ void handleBLEData() {
     if (moistureChar.valueUpdated()) {
       memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
     }
+    if (lightChar.valueUpdated()) {
+      memcpy(&lastLight, lightChar.value(), sizeof(float));
+    }
 
     nBuffer[bufferIndex] = lastN;
     kBuffer[bufferIndex] = lastK;
@@ -101,12 +110,13 @@ void handleBLEData() {
     humidBuffer[bufferIndex] = lastHumid;
     sunBuffer[bufferIndex] = lastSun;
     moistureBuffer[bufferIndex] = lastMoisture;
+    lightBuffer[bufferIndex] = lastLight;
 
     bufferIndex = (bufferIndex + 1) % maxPoints;
 
     if (currentView == PLOT) {
         drawPlot();
-        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture);
+        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture, lastLight);
     } else if (currentView == SETTINGS) {
         drawSettingsView();
     }
