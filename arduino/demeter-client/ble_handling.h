@@ -21,6 +21,7 @@ void setupCharacteristics() {
   humidChar = peripheral.characteristic(uuidHumid);
   sunChar = peripheral.characteristic(uuidSun);
   moistureChar = peripheral.characteristic(uuidMoisture);
+  lightChar = peripheral.characteristic(uuidLight);
 
   if (nChar && nChar.canSubscribe()) {
     nChar.subscribe();
@@ -57,6 +58,11 @@ void setupCharacteristics() {
     Serial.println("Subscribed to Moisture");
   }
 
+  if (lightChar && lightChar.canSubscribe()) {
+    lightChar.subscribe();
+    Serial.println("Subscribed to Light");
+  }
+
   llmStatusChar = peripheral.characteristic(uuidLlmStatus);
   if (llmStatusChar && llmStatusChar.canSubscribe()) {
     llmStatusChar.subscribe();
@@ -67,33 +73,41 @@ void setupCharacteristics() {
 }
 
 void handleBLEData() {
-  bool anyValueUpdated = nChar.valueUpdated() || kChar.valueUpdated() || pChar.valueUpdated() ||
-                         phChar.valueUpdated() || humidChar.valueUpdated() || sunChar.valueUpdated() ||
-                         moistureChar.valueUpdated();
+  bool needsRedraw = false;
+  if (nChar.valueUpdated()) {
+    memcpy(&lastN, nChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (kChar.valueUpdated()) {
+    memcpy(&lastK, kChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (pChar.valueUpdated()) {
+    memcpy(&lastP, pChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (phChar.valueUpdated()) {
+    memcpy(&lastPh, phChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (humidChar.valueUpdated()) {
+    memcpy(&lastHumid, humidChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (sunChar.valueUpdated()) {
+    memcpy(&lastSun, sunChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (moistureChar.valueUpdated()) {
+    memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
+  if (lightChar.valueUpdated()) {
+    memcpy(&lastLight, lightChar.value(), sizeof(float));
+    needsRedraw = true;
+  }
 
-  if (anyValueUpdated) {
-    if (nChar.valueUpdated()) {
-      memcpy(&lastN, nChar.value(), sizeof(float));
-    }
-    if (kChar.valueUpdated()) {
-      memcpy(&lastK, kChar.value(), sizeof(float));
-    }
-    if (pChar.valueUpdated()) {
-      memcpy(&lastP, pChar.value(), sizeof(float));
-    }
-    if (phChar.valueUpdated()) {
-      memcpy(&lastPh, phChar.value(), sizeof(float));
-    }
-    if (humidChar.valueUpdated()) {
-      memcpy(&lastHumid, humidChar.value(), sizeof(float));
-    }
-    if (sunChar.valueUpdated()) {
-      memcpy(&lastSun, sunChar.value(), sizeof(float));
-    }
-    if (moistureChar.valueUpdated()) {
-      memcpy(&lastMoisture, moistureChar.value(), sizeof(float));
-    }
-
+  if (needsRedraw) {
     nBuffer[bufferIndex] = lastN;
     kBuffer[bufferIndex] = lastK;
     pBuffer[bufferIndex] = lastP;
@@ -101,14 +115,15 @@ void handleBLEData() {
     humidBuffer[bufferIndex] = lastHumid;
     sunBuffer[bufferIndex] = lastSun;
     moistureBuffer[bufferIndex] = lastMoisture;
+    lightBuffer[bufferIndex] = lastLight;
 
     bufferIndex = (bufferIndex + 1) % maxPoints;
 
     if (currentView == PLOT) {
-        drawPlot();
-        drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture);
+      drawPlot();
+      drawLabels(lastN, lastP, lastK, lastPh, lastHumid, lastSun, lastMoisture, lastLight);
     } else if (currentView == SETTINGS) {
-        drawSettingsView();
+      drawSettingsView();
     }
   }
 }

@@ -15,6 +15,7 @@ const char* uuidPh = "12345678-1234-5678-1234-56789abcdef7";
 const char* uuidHumid = "12345678-1234-5678-1234-56789abcdef8";
 const char* uuidSun = "12345678-1234-5678-1234-56789abcdef9";
 const char* uuidMoisture = "12345678-1234-5678-1234-56789abcdefb";
+const char* uuidLight = "12345678-1234-5678-1234-56789abcdefc";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 const char* uuidPlantType = "12345678-1234-5678-1234-56789abcdefa";
 
@@ -27,6 +28,7 @@ const uint16_t COLOR_WARNING = YELLOW;
 const uint16_t COLOR_ERROR = RED;
 const uint16_t COLOR_MUTED = DARKGREY;
 const uint16_t COLOR_TEAL = 0x0493;
+const uint16_t COLOR_ORANGE = 0xFC00;
 
 const int BUTTON_WIDTH = 120;
 const int BUTTON_HEIGHT = 40;
@@ -44,14 +46,14 @@ const int NAV_ARROW_PADDING = 10;
 const int NAV_DOT_RADIUS = 4;
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, llmStatusChar, plantTypeChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, lightChar, llmStatusChar, plantTypeChar;
 
 const int maxPoints = 160;
-float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints], moistureBuffer[maxPoints];
+float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints], moistureBuffer[maxPoints], lightBuffer[maxPoints];
 int bufferIndex = 0;
 bool connected = false;
 uint16_t ledColor = COLOR_MUTED;
-float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0, lastMoisture = 0;
+float lastN = 0, lastK = 0, lastP = 0, lastPh = 0, lastHumid = 0, lastSun = 0, lastMoisture = 0, lastLight = 0;
 unsigned long lastHeartbeatTime = 0;
 bool homeViewDirty = false;
 
@@ -70,7 +72,7 @@ int selectedPlantType = 0;
 const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
 bool isDropdownOpen = false;
 
-enum PlotState { ALL, N, K, P, PH, HUMID, SUN, MOISTURE };
+enum PlotState { ALL, N, K, P, PH, HUMID, SUN, MOISTURE, LIGHT };
 PlotState currentPlotState = ALL;
 
 const int TOGGLE_BUTTON_X = 250;
@@ -87,7 +89,7 @@ void drawControlView();
 void drawSettingsView();
 void handleTouch();
 void drawPlot();
-void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture);
+void drawLabels(float n, float p, float k, float ph, float humid, float sun, float moisture, float light);
 String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
