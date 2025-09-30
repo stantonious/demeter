@@ -142,6 +142,23 @@ void handleTouch() {
               }
             }
           }
+
+          // Number of Suggestions Stepper
+          if (!isDropdownOpen && detail.x > 240 && detail.x < 270 && detail.y > 180 && detail.y < 220) {
+            if (detail.y < 200) {  // Up arrow
+              if (numSuggestions < 5) {
+                numSuggestions++;
+                setNumSuggestions(numSuggestions);
+                drawSettingsView();
+              }
+            } else {  // Down arrow
+              if (numSuggestions > 1) {
+                numSuggestions--;
+                setNumSuggestions(numSuggestions);
+                drawSettingsView();
+              }
+            }
+          }
         } else if (currentView == BITMAP) {
           if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = HOME; }  // Back to Home
         } else if (currentView == CONTROL) {

@@ -56,6 +56,7 @@ g_plant_type = 'ground cover'
 g_humidity_val = 0.0
 g_moisture_val = 0.0
 g_light_val = 0.0
+g_num_suggestions = 1
 
 
 class Characteristic(dbus.service.Object):
@@ -766,6 +767,50 @@ class LlmSelectionChar(dbus.service.Object):
             print(f"Received invalid byte array length for LLM selection: {len(value)}")
 
 
+class NumSuggestionsChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = g_num_suggestions  # Default to global
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_num_suggestions
+        if len(value) == 4:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            if 1 <= written_value <= 5:
+                print(f"Set num suggestions to: {written_value}")
+                g_num_suggestions = written_value
+                self.value = written_value
+            else:
+                print(f"Invalid number of suggestions: {written_value}. Must be between 1 and 5.")
+        else:
+            print(f"Received invalid byte array length for num suggestions: {len(value)}")
+
+
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -810,7 +855,7 @@ class IntWritableChar(dbus.service.Object):
                 self.value = 1 # set offset to 1
                 if not is_generating:
                     print ('generating',g_plant_type)
-                    g_llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
+                    g_llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=g_num_suggestions)
                     print ('sending llm req',g_llm_prompt)
                     # Pass the llm_status_char to the thread
                     thread = threading.Thread(target=generate_llm_response, args=(g_llm_prompt,self.service.llm_status_char))
@@ -1134,6 +1179,10 @@ def main():
     llm_selection_char = LlmSelectionChar(bus, 13,
     "12345678-1234-5678-1234-56789abcdefd", ["read", "write"], service)
     service.characteristics.append(llm_selection_char)
+
+    num_suggestions_char = NumSuggestionsChar(bus, 14,
+    "12345678-1234-5678-1234-56789abcdefe", ["read", "write"], service)
+    service.characteristics.append(num_suggestions_char)
 
     service.llm_status_char = llm_status_char
     app.add_service(service)

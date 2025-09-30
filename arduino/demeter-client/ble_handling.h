@@ -71,6 +71,17 @@ void setupCharacteristics() {
 
   plantTypeChar = peripheral.characteristic(uuidPlantType);
   llmSelectionChar = peripheral.characteristic(uuidLlmSelection);
+  numSuggestionsChar = peripheral.characteristic(uuidNumSuggestions);
+}
+
+void setNumSuggestions(int num) {
+  if (numSuggestionsChar && numSuggestionsChar.canWrite()) {
+    int32_t value_to_write = num;
+    Serial.printf("Writing %d to numSuggestionsChar...\n", value_to_write);
+    numSuggestionsChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+  } else {
+    Serial.println("Cannot write to numSuggestionsChar");
+  }
 }
 
 void setLlmBackend(int backend) {

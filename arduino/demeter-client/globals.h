@@ -19,6 +19,7 @@ const char* uuidLight = "12345678-1234-5678-1234-56789abcdefc";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 const char* uuidPlantType = "12345678-1234-5678-1234-56789abcdefa";
 const char* uuidLlmSelection = "12345678-1234-5678-1234-56789abcdefd";
+const char* uuidNumSuggestions = "12345678-1234-5678-1234-56789abcdefe";
 
 // UI Constants
 const uint16_t COLOR_BACKGROUND = BLACK;
@@ -47,7 +48,7 @@ const int NAV_ARROW_PADDING = 10;
 const int NAV_DOT_RADIUS = 4;
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, lightChar, llmStatusChar, plantTypeChar, llmSelectionChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, lightChar, llmStatusChar, plantTypeChar, llmSelectionChar, numSuggestionsChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints], moistureBuffer[maxPoints], lightBuffer[maxPoints];
@@ -73,6 +74,7 @@ int selectedPlantType = 0;
 const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
 bool isDropdownOpen = false;
 int selectedLlmBackend = 0; // 0 for tinyllm, 1 for chatgpt
+int numSuggestions = 1;
 
 const int RADIO_BUTTON_X = 50;
 const int RADIO_BUTTON_Y = 120;

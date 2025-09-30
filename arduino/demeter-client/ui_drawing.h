@@ -206,6 +206,13 @@ void drawSettingsView() {
   }
   M5.Display.drawString("ChatGPT", chat_gpt_x + 20, RADIO_BUTTON_Y - 8);
 
+  // Draw Number of Suggestions
+  M5.Display.drawString("Suggestions", 50, 160);
+  M5.Display.fillRoundRect(50, 180, 220, 40, 5, M5.Display.color565(80, 80, 80));
+  M5.Display.drawCenterString(String(numSuggestions), 160, 190);
+  M5.Display.fillTriangle(250, 190, 260, 190, 255, 180, COLOR_TEXT); // Up arrow
+  M5.Display.fillTriangle(250, 200, 260, 200, 255, 210, COLOR_TEXT); // Down arrow
+
 
   if (isDropdownOpen) {
     for (int i = 0; i < 4; i++) {
