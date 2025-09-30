@@ -169,6 +169,10 @@ void fetchLlmResponse() {
       }
     } while (length == 225);
 
+    // Normalize line endings
+    suggestionText.replace("\r\n", "\n");
+    suggestionText.replace("\r", "\n");
+
     suggestionText = wordWrap(suggestionText, 35);
     scrollOffset = 0;
     totalLines = countLines(suggestionText);
