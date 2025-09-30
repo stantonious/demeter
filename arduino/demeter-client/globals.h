@@ -18,6 +18,7 @@ const char* uuidMoisture = "12345678-1234-5678-1234-56789abcdefb";
 const char* uuidLight = "12345678-1234-5678-1234-56789abcdefc";
 const char* uuidLlmStatus = "12345678-1234-5678-1234-56789abcdeff";
 const char* uuidPlantType = "12345678-1234-5678-1234-56789abcdefa";
+const char* uuidLlmSelection = "12345678-1234-5678-1234-56789abcdefd";
 
 // UI Constants
 const uint16_t COLOR_BACKGROUND = BLACK;
@@ -46,7 +47,7 @@ const int NAV_ARROW_PADDING = 10;
 const int NAV_DOT_RADIUS = 4;
 
 BLEDevice peripheral;
-BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, lightChar, llmStatusChar, plantTypeChar;
+BLECharacteristic nChar, kChar, pChar, suggestChar, llmChar, phChar, humidChar, sunChar, moistureChar, lightChar, llmStatusChar, plantTypeChar, llmSelectionChar;
 
 const int maxPoints = 160;
 float nBuffer[maxPoints], kBuffer[maxPoints], pBuffer[maxPoints], phBuffer[maxPoints], humidBuffer[maxPoints], sunBuffer[maxPoints], moistureBuffer[maxPoints], lightBuffer[maxPoints];
@@ -71,6 +72,13 @@ int totalLines = 0;
 int selectedPlantType = 0;
 const char* plantTypes[] = {"ground", "veg", "shrub", "flowering"};
 bool isDropdownOpen = false;
+int selectedLlmBackend = 0; // 0 for tinyllm, 1 for chatgpt
+
+const int RADIO_BUTTON_X = 50;
+const int RADIO_BUTTON_Y = 120;
+const int RADIO_BUTTON_RADIUS = 8;
+const int RADIO_BUTTON_SPACING = 120;
+
 
 enum PlotState { ALL, N, K, P, PH, HUMID, SUN, MOISTURE, LIGHT };
 PlotState currentPlotState = ALL;
@@ -94,3 +102,4 @@ String wordWrap(String text, unsigned int lineLength);
 void fetchLlmResponse();
 void setupCharacteristics();
 int countLines(String text);
+void setLlmBackend(int backend);
