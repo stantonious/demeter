@@ -11,12 +11,16 @@ import numpy as np
 import serial
 import struct
 import RPi.GPIO as GPIO
+from openai import OpenAI
 from ollama import generate
 import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_bh1750
+from config import OPENAI_API_KEY
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -594,8 +598,7 @@ def generate_plant_prompt(
     )
     return prompt
 
-ollama_model = 'tinyllama'
-def generate_llm_response(prompt, llm_status_char):
+def generate_ollama_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
         return
@@ -610,8 +613,7 @@ def generate_llm_response(prompt, llm_status_char):
     counter_thread.start()
 
     try:
-        #response = generate(ollama_model, prompt,options={'num_predict':100}).response
-        response = generate(ollama_model, prompt).response
+        response = generate('tinyllama', prompt).response
         current_llm_response = response
         print('got ollama res in background:', current_llm_response)
     except Exception as e:
@@ -620,6 +622,45 @@ def generate_llm_response(prompt, llm_status_char):
     finally:
         is_generating = False
         llm_status_char.set_status(2) # Ready
+
+
+def generate_chatgpt_response(prompt, llm_status_char):
+    global current_llm_response, is_generating
+    if is_generating:
+        return
+
+    is_generating = True
+    llm_status_char.set_status(1)  # Generating
+    print('starting openai req in background')
+    start_time = time.time()
+
+    counter_thread = threading.Thread(target=update_generating_status, args=(start_time, g_llm_prompt))
+    counter_thread.daemon = True
+    counter_thread.start()
+
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        response = completion.choices[0].message.content
+        current_llm_response = response
+        print('got openai res in background:', current_llm_response)
+    except Exception as e:
+        print(f"Error in openai generation: {e}")
+        current_llm_response = "Error generating response."
+    finally:
+        is_generating = False
+        llm_status_char.set_status(2)  # Ready
+
+def generate_llm_response(prompt, llm_status_char):
+    if g_llm_backend == 1:
+        generate_chatgpt_response(prompt, llm_status_char)
+    else:
+        generate_ollama_response(prompt, llm_status_char)
 
 location_lat="39.5186"
 location_lon="-104.7614"
@@ -677,6 +718,54 @@ class PlantTypeChar(dbus.service.Object):
             print(f"Received invalid byte array length: {len(value)}")
 
 
+g_llm_backend = 0 # 0 for tinyllm, 1 for chatgpt
+
+class LlmSelectionChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0  # Initial integer value, 0 for tinyllm
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_llm_backend
+        if len(value) == 4:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set llm backend to: {written_value}")
+            if written_value == 0:
+                g_llm_backend = 0
+                print ('setting llm backend to tinyllm')
+            elif written_value == 1:
+                g_llm_backend = 1
+                print ('setting llm backend to chatgpt')
+            self.value = written_value
+        else:
+            print(f"Received invalid byte array length for LLM selection: {len(value)}")
+
+
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -722,7 +811,7 @@ class IntWritableChar(dbus.service.Object):
                 if not is_generating:
                     print ('generating',g_plant_type)
                     g_llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
-                    print ('sending ollama req',g_llm_prompt)
+                    print ('sending llm req',g_llm_prompt)
                     # Pass the llm_status_char to the thread
                     thread = threading.Thread(target=generate_llm_response, args=(g_llm_prompt,self.service.llm_status_char))
                     thread.daemon = True
@@ -1041,6 +1130,10 @@ def main():
     light_char = LightChar(bus, 12,
     "12345678-1234-5678-1234-56789abcdefc", ["read", "notify"], service)
     service.characteristics.append(light_char)
+
+    llm_selection_char = LlmSelectionChar(bus, 13,
+    "12345678-1234-5678-1234-56789abcdefd", ["read", "write"], service)
+    service.characteristics.append(llm_selection_char)
 
     service.llm_status_char = llm_status_char
     app.add_service(service)

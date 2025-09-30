@@ -70,6 +70,17 @@ void setupCharacteristics() {
   }
 
   plantTypeChar = peripheral.characteristic(uuidPlantType);
+  llmSelectionChar = peripheral.characteristic(uuidLlmSelection);
+}
+
+void setLlmBackend(int backend) {
+  if (llmSelectionChar && llmSelectionChar.canWrite()) {
+    int32_t value_to_write = backend;
+    Serial.printf("Writing %d to llmSelectionChar...\n", value_to_write);
+    llmSelectionChar.writeValue((byte*)&value_to_write, sizeof(value_to_write));
+  } else {
+    Serial.println("Cannot write to llmSelectionChar");
+  }
 }
 
 void handleBLEData() {

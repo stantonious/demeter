@@ -188,6 +188,25 @@ void drawSettingsView() {
   M5.Display.drawString(plantTypes[selectedPlantType], 60, 55);
   M5.Display.fillTriangle(250, 60, 260, 60, 255, 70, COLOR_TEXT);
 
+  // Draw LLM Backend Selection
+  M5.Display.drawString("LLM Backend", 50, 100);
+
+  // TinyLLM Radio Button
+  M5.Display.drawCircle(RADIO_BUTTON_X, RADIO_BUTTON_Y, RADIO_BUTTON_RADIUS, COLOR_TEXT);
+  if (selectedLlmBackend == 0) {
+    M5.Display.fillCircle(RADIO_BUTTON_X, RADIO_BUTTON_Y, RADIO_BUTTON_RADIUS - 3, COLOR_TEAL);
+  }
+  M5.Display.drawString("TinyLLM", RADIO_BUTTON_X + 20, RADIO_BUTTON_Y - 8);
+
+  // ChatGPT Radio Button
+  int chat_gpt_x = RADIO_BUTTON_X + RADIO_BUTTON_SPACING;
+  M5.Display.drawCircle(chat_gpt_x, RADIO_BUTTON_Y, RADIO_BUTTON_RADIUS, COLOR_TEXT);
+  if (selectedLlmBackend == 1) {
+    M5.Display.fillCircle(chat_gpt_x, RADIO_BUTTON_Y, RADIO_BUTTON_RADIUS - 3, COLOR_TEAL);
+  }
+  M5.Display.drawString("ChatGPT", chat_gpt_x + 20, RADIO_BUTTON_Y - 8);
+
+
   if (isDropdownOpen) {
     for (int i = 0; i < 4; i++) {
       M5.Display.fillRoundRect(50, 80 + i * 30, 220, 30, 5, M5.Display.color565(120, 120, 120));

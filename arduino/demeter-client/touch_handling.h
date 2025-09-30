@@ -125,6 +125,23 @@ void handleTouch() {
               }
             }
           }
+
+          // LLM Backend Radio Buttons
+          if (!isDropdownOpen && detail.y > RADIO_BUTTON_Y - (RADIO_BUTTON_RADIUS + 5) && detail.y < RADIO_BUTTON_Y + (RADIO_BUTTON_RADIUS + 5)) {
+            if (detail.x > RADIO_BUTTON_X - RADIO_BUTTON_RADIUS && detail.x < RADIO_BUTTON_X + RADIO_BUTTON_SPACING - 20) {
+              if (selectedLlmBackend != 0) {
+                selectedLlmBackend = 0;
+                setLlmBackend(0);
+                drawSettingsView();
+              }
+            } else if (detail.x > RADIO_BUTTON_X + RADIO_BUTTON_SPACING - 20 && detail.x < RADIO_BUTTON_X + RADIO_BUTTON_SPACING + 100) {
+              if (selectedLlmBackend != 1) {
+                selectedLlmBackend = 1;
+                setLlmBackend(1);
+                drawSettingsView();
+              }
+            }
+          }
         } else if (currentView == BITMAP) {
           if (detail.x > M5.Display.width() / 2 - NAV_ARROW_SIZE && detail.x < M5.Display.width() / 2 + NAV_ARROW_SIZE && detail.y > 0 && detail.y < NAV_ARROW_PADDING * 2 + NAV_ARROW_SIZE) { currentView = HOME; }  // Back to Home
         } else if (currentView == CONTROL) {
