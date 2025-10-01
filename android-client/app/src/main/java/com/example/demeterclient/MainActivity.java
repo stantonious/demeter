@@ -34,13 +34,16 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -71,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_IMAGE_CAPTURE = 2;
     private static final int REQUEST_CAMERA_PERMISSION = 3;
+    private static final int REQUEST_PREVIEW_IMAGE = 4;
     private String currentPhotoPath;
     private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
 
@@ -195,7 +199,15 @@ public class MainActivity extends AppCompatActivity {
             if (currentPhotoPath != null) {
                 Intent intent = new Intent(this, PreviewActivity.class);
                 intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
-                startActivity(intent);
+                startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
+            }
+        } else if (requestCode == REQUEST_PREVIEW_IMAGE && resultCode == RESULT_OK) {
+            if (data != null) {
+                String imageUriString = data.getStringExtra("image_uri");
+                if (imageUriString != null) {
+                    Uri imageUri = Uri.parse(imageUriString);
+                    sendImage(imageUri);
+                }
             }
         }
     }
@@ -626,6 +638,52 @@ public class MainActivity extends AppCompatActivity {
         if (history.size() > MAX_DATA_POINTS) {
             history.remove(0);
         }
+    }
+
+    private void sendImage(Uri imageUri) {
+        if (bluetoothGatt == null || imageUri == null) {
+            Log.e(TAG, "Bluetooth not connected or image URI is null.");
+            return;
+        }
+
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found");
+            return;
+        }
+
+        final BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
+        if (imageChar == null) {
+            Log.e(TAG, "Image characteristic not found");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    byteStream.write(buffer, 0, bytesRead);
+                }
+                byte[] imageData = byteStream.toByteArray();
+                Log.d(TAG, "Image size: " + imageData.length + " bytes");
+
+                int chunkSize = 512;
+                for (int i = 0; i < imageData.length; i += chunkSize) {
+                    int end = Math.min(imageData.length, i + chunkSize);
+                    byte[] chunk = Arrays.copyOfRange(imageData, i, end);
+                    writeCharacteristicToQueue(imageChar, chunk);
+                }
+
+                // Send End-Of-Transmission signal
+                writeCharacteristicToQueue(imageChar, "EOT".getBytes());
+
+            } catch (IOException e) {
+                Log.e(TAG, "Error reading image file", e);
+            }
+        }).start();
     }
 
     private void updateLedIndicator(BleConnectionStatus status) {

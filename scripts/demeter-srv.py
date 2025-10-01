@@ -576,6 +576,46 @@ class PChar(dbus.service.Object):
         pass
 
 
+class ImageChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.image_data = bytearray()
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        chunk = bytes(value)
+        if chunk == b'EOT':
+            try:
+                with open("received_image.jpg", "wb") as f:
+                    f.write(self.image_data)
+                print("Image saved successfully.")
+            except IOError as e:
+                print(f"Error saving image: {e}")
+            finally:
+                self.image_data = bytearray()
+        else:
+            self.image_data.extend(chunk)
+            print(f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
+
+
 current_llm_response = ""
 is_generating = False
 g_llm_prompt = ""
@@ -1248,6 +1288,10 @@ def main():
     num_suggestions_char = NumSuggestionsChar(bus, 14,
                                               "12345678-1234-5678-1234-56789abcdefe", ["read", "write"], service)
     service.characteristics.append(num_suggestions_char)
+
+    image_char = ImageChar(bus, 15,
+                             "12345678-1234-5678-1234-56789abcdff0", ["write"], service)
+    service.characteristics.append(image_char)
 
     ad = Advertisement(bus, 0,SERVICE_UUID)
 
