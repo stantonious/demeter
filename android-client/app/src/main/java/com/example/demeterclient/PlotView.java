@@ -107,9 +107,11 @@ public class PlotView extends View {
         canvas.drawText(String.format("%.1f", globalMax), padding - 10, padding + 10, textPaint);
         canvas.drawText(String.format("%.1f", globalMin), padding - 10, height - padding, textPaint);
 
-        // --- Draw Data Lines ---
+        // --- Draw Data Lines & Labels ---
         float plotHeight = height - (2 * padding);
         float plotWidth = width - padding - legendWidth;
+
+        legendPaint.setTextAlign(Paint.Align.LEFT); // Set alignment for value labels
 
         for (Map.Entry<String, ArrayList<Float>> entry : dataSeries.entrySet()) {
             ArrayList<Float> points = entry.getValue();
@@ -117,6 +119,9 @@ public class PlotView extends View {
 
             linePaint.setColor(seriesColors.getOrDefault(entry.getKey(), Color.BLACK));
             linePath.reset();
+
+            float lastX = 0;
+            float lastY = 0;
 
             if (points.size() > 1) {
                 for (int i = 0; i < points.size(); i++) {
@@ -128,13 +133,22 @@ public class PlotView extends View {
                     } else {
                         linePath.lineTo(x, y);
                     }
+                    if (i == points.size() - 1) {
+                        lastX = x;
+                        lastY = y;
+                    }
                 }
                 canvas.drawPath(linePath, linePaint);
             } else { // Single point
-                float x = padding + (plotWidth / 2);
-                float y = (height - padding) - ((points.get(0) - globalMin) / range * plotHeight);
-                canvas.drawCircle(x, y, 10, linePaint);
+                lastX = padding + (plotWidth / 2);
+                lastY = (height - padding) - ((points.get(0) - globalMin) / range * plotHeight);
+                canvas.drawCircle(lastX, lastY, 10, linePaint);
             }
+
+            // Draw the value label
+            legendPaint.setColor(seriesColors.getOrDefault(entry.getKey(), Color.BLACK));
+            float lastValue = points.get(points.size() - 1);
+            canvas.drawText(String.format("%.1f", lastValue), lastX + 15, lastY + 8, legendPaint);
         }
 
         // --- Draw Legend ---
