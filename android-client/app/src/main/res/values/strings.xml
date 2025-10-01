@@ -1,10 +1,9 @@
 <resources>
     <string name="app_name">Demeter Client</string>
     <string-array name="plant_types">
-        <item>Default</item>
-        <item>Tomato</item>
-        <item>Cucumber</item>
-        <item>Pepper</item>
-        <item>Lettuce</item>
+        <item>Ground</item>
+        <item>Vegetable</item>
+        <item>Shrub</item>
+        <item>Flowering</item>
     </string-array>
 </resources>
