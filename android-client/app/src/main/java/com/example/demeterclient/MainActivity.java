@@ -29,6 +29,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -643,20 +644,25 @@ public class MainActivity extends AppCompatActivity {
     private void sendImage(Uri imageUri) {
         if (bluetoothGatt == null || imageUri == null) {
             Log.e(TAG, "Bluetooth not connected or image URI is null.");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Bluetooth not connected.", Toast.LENGTH_SHORT).show());
             return;
         }
 
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) {
             Log.e(TAG, "Demeter service not found");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Service not found.", Toast.LENGTH_SHORT).show());
             return;
         }
 
         final BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
         if (imageChar == null) {
             Log.e(TAG, "Image characteristic not found");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Characteristic not found.", Toast.LENGTH_SHORT).show());
             return;
         }
+
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show());
 
         new Thread(() -> {
             try {
@@ -674,14 +680,19 @@ public class MainActivity extends AppCompatActivity {
                 for (int i = 0; i < imageData.length; i += chunkSize) {
                     int end = Math.min(imageData.length, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
+                    Log.d(TAG, "Queuing chunk " + (i / chunkSize + 1) + ", size: " + chunk.length);
                     writeCharacteristicToQueue(imageChar, chunk);
                 }
 
                 // Send End-Of-Transmission signal
+                Log.d(TAG, "Queuing EOT signal.");
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
+
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show());
 
             } catch (IOException e) {
                 Log.e(TAG, "Error reading image file", e);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         }).start();
     }
