@@ -45,6 +45,7 @@ public class PlotView extends View {
 
         legendPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         legendPaint.setTextSize(24);
+        legendPaint.setTextAlign(Paint.Align.LEFT);
 
         linePath = new Path();
 
@@ -85,7 +86,7 @@ public class PlotView extends View {
         int width = getWidth();
         int height = getHeight();
         float padding = 60;
-        float legendWidth = 220; // Increased width for longer labels
+        float legendWidth = 220;
 
         // Draw title
         textPaint.setTextAlign(Paint.Align.CENTER);
@@ -105,7 +106,7 @@ public class PlotView extends View {
             maxDataPoints = Math.max(maxDataPoints, series.size());
         }
 
-        if (globalMin == Float.MAX_VALUE || maxDataPoints == 0) return; // No data to plot
+        if (globalMin == Float.MAX_VALUE || maxDataPoints == 0) return;
 
         float range = globalMax - globalMin;
         if (range == 0) range = 1;
@@ -121,8 +122,6 @@ public class PlotView extends View {
         // --- Draw Data Lines & Labels ---
         float plotHeight = height - (2 * padding);
         float plotWidth = width - padding - legendWidth;
-
-        legendPaint.setTextAlign(Paint.Align.LEFT); // Set alignment for value labels
 
         for (Map.Entry<String, ArrayList<Float>> entry : dataSeries.entrySet()) {
             ArrayList<Float> points = entry.getValue();
@@ -150,7 +149,7 @@ public class PlotView extends View {
                     }
                 }
                 canvas.drawPath(linePath, linePaint);
-            } else { // Single point
+            } else {
                 lastX = padding + (plotWidth / 2);
                 lastY = (height - padding) - ((points.get(0) - globalMin) / range * plotHeight);
                 canvas.drawCircle(lastX, lastY, 10, linePaint);
@@ -173,9 +172,7 @@ public class PlotView extends View {
             String label = seriesLabels.getOrDefault(key, key);
 
             legendPaint.setColor(color);
-            canvas.drawRect(legendX, legendY + (i * 30), legendX + 20, legendY + 20 + (i * 30), legendPaint);
-            legendPaint.setColor(Color.BLACK);
-            canvas.drawText(label, legendX + 30, legendY + 18 + (i * 30), legendPaint);
+            canvas.drawText(label, legendX, legendY + 18 + (i * 30), legendPaint);
             i++;
         }
     }
