@@ -19,6 +19,8 @@ import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_bh1750
 from config import OPENAI_API_KEY
+from PIL import Image, ImageDraw
+import io
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -58,6 +60,7 @@ g_humidity_val = 0.0
 g_moisture_val = 0.0
 g_light_val = 0.0
 g_num_suggestions = 0
+g_augmented_image_data = bytearray()
 
 
 class Characteristic(dbus.service.Object):
@@ -601,19 +604,107 @@ class ImageChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="aya{sv}")
     def WriteValue(self, value, options):
+        global g_augmented_image_data
         chunk = bytes(value)
         if chunk == b'EOT':
             try:
-                with open("received_image.jpg", "wb") as f:
-                    f.write(self.image_data)
-                print("Image saved successfully.")
-            except IOError as e:
-                print(f"Error saving image: {e}")
+                # Augment the image
+                image = Image.open(io.BytesIO(self.image_data))
+                draw = ImageDraw.Draw(image)
+                width, height = image.size
+                box_size = min(width, height) // 4
+                left = (width - box_size) // 2
+                top = (height - box_size) // 2
+                right = left + box_size
+                bottom = top + box_size
+                draw.rectangle([left, top, right, bottom], outline="yellow", width=5)
+
+                # Save augmented image to byte array
+                output_buffer = io.BytesIO()
+                image.save(output_buffer, format="JPEG")
+                g_augmented_image_data = output_buffer.getvalue()
+
+                print("Image received and augmented successfully.")
+
+            except Exception as e:
+                print(f"Error processing image: {e}")
             finally:
+                # Clear the received image data
                 self.image_data = bytearray()
         else:
             self.image_data.extend(chunk)
             print(f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
+
+
+class IntOffsetChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set image request offset to: {self.value}")
+        else:
+            print(f"Received invalid byte array length for offset: {len(value)}")
+
+
+class AugmentedImageChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, request_char):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.request_char = request_char
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        offset = self.request_char.value
+
+        if not g_augmented_image_data or offset >= len(g_augmented_image_data):
+            print("Image transfer complete or no image available.")
+            return []
+
+        chunk_size = 512
+        start_index = offset
+        end_index = min(start_index + chunk_size, len(g_augmented_image_data))
+
+        chunk = g_augmented_image_data[start_index:end_index]
+
+        print(f"Reading augmented image chunk (offset: {offset}, size: {len(chunk)})")
+        return [dbus.Byte(b) for b in chunk]
 
 
 current_llm_response = ""
@@ -1292,6 +1383,14 @@ def main():
     image_char = ImageChar(bus, 15,
                              "12345678-1234-5678-1234-56789abcdff0", ["write"], service)
     service.characteristics.append(image_char)
+
+    image_request_char = IntOffsetChar(bus, 16,
+                                         "12345678-1234-5678-1234-56789abcdff1", ["write"], service)
+    service.characteristics.append(image_request_char)
+
+    augmented_image_char = AugmentedImageChar(bus, 17,
+                                                "12345678-1234-5678-1234-56789abcdff2", ["read"], service, image_request_char)
+    service.characteristics.append(augmented_image_char)
 
     ad = Advertisement(bus, 0,SERVICE_UUID)
 

@@ -74,6 +74,11 @@ public class MainActivity extends AppCompatActivity {
     private Spinner plantTypeSpinner;
     private PlotView livePlotView;
     private Button takePictureButton;
+    private Button getAugmentedImageButton;
+    private ImageView augmentedImageView;
+
+    private ByteArrayOutputStream augmentedImageStream = new ByteArrayOutputStream();
+    private int imageReadOffset = 0;
 
     private static final int REQUEST_IMAGE_CAPTURE = 2;
     private static final int REQUEST_CAMERA_PERMISSION = 3;
@@ -122,6 +127,8 @@ public class MainActivity extends AppCompatActivity {
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
         livePlotView = findViewById(R.id.live_plot_view);
         takePictureButton = findViewById(R.id.take_picture_button);
+        getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
+        augmentedImageView = findViewById(R.id.augmented_image_view);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -139,6 +146,10 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 dispatchTakePictureIntent();
             }
+        });
+
+        getAugmentedImageButton.setOnClickListener(v -> {
+            fetchAugmentedImage();
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -368,6 +379,8 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
                     readLlmChunk();
+                } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_REQUEST)) {
+                    readAugmentedImageChunk();
                 }
             } else {
                 Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
@@ -379,15 +392,50 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
-                byte[] data = characteristic.getValue();
-                if (data != null && data.length > 0) {
-                    suggestionBuilder.append(new String(data));
-                    if (data.length < 225) {
-                        runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                if (characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
+                    byte[] data = characteristic.getValue();
+                    if (data != null && data.length > 0) {
+                        suggestionBuilder.append(new String(data));
+                        if (data.length < 225) {
+                            runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
+                        } else {
+                            llmOffset += data.length;
+                            requestLlmChunk();
+                        }
+                    }
+                } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE)) {
+                    byte[] data = characteristic.getValue();
+                    if (data != null && data.length > 0) {
+                        try {
+                            augmentedImageStream.write(data);
+                            // Check if this is the last chunk (chunk size is less than max)
+                            if (data.length < 512) {
+                                byte[] imageData = augmentedImageStream.toByteArray();
+                                Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                                runOnUiThread(() -> {
+                                    augmentedImageView.setImageBitmap(bitmap);
+                                    augmentedImageView.setVisibility(View.VISIBLE);
+                                    Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+                                });
+                            } else {
+                                imageReadOffset += data.length;
+                                requestAugmentedImageChunk();
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "Error writing to augmented image stream", e);
+                        }
                     } else {
-                        llmOffset += data.length;
-                        requestLlmChunk();
+                        // Empty data also signals end of transfer
+                        byte[] imageData = augmentedImageStream.toByteArray();
+                        if (imageData.length > 0) {
+                            Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                            runOnUiThread(() -> {
+                                augmentedImageView.setImageBitmap(bitmap);
+                                augmentedImageView.setVisibility(View.VISIBLE);
+                                Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+                            });
+                        }
                     }
                 }
             }
@@ -724,5 +772,51 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
         runOnUiThread(() -> ledIndicator.setImageDrawable(ContextCompat.getDrawable(MainActivity.this, drawableId)));
+    }
+
+    private void fetchAugmentedImage() {
+        if (bluetoothGatt == null) {
+            Toast.makeText(this, "Bluetooth not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        augmentedImageStream.reset();
+        imageReadOffset = 0;
+        augmentedImageView.setVisibility(View.GONE);
+        Toast.makeText(this, "Fetching augmented image...", Toast.LENGTH_SHORT).show();
+        requestAugmentedImageChunk();
+    }
+
+    private void requestAugmentedImageChunk() {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found for augmented image request");
+            return;
+        }
+        BluetoothGattCharacteristic requestChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_REQUEST);
+        if (requestChar == null) {
+            Log.e(TAG, "Image Request characteristic not found");
+            return;
+        }
+        byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(imageReadOffset).array();
+        writeCharacteristicToQueue(requestChar, value);
+    }
+
+    private void readAugmentedImageChunk() {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found for augmented image read");
+            return;
+        }
+        BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_AUGMENTED_IMAGE);
+        if (imageChar == null) {
+            Log.e(TAG, "Augmented Image characteristic not found");
+            return;
+        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        bluetoothGatt.readCharacteristic(imageChar);
     }
 }

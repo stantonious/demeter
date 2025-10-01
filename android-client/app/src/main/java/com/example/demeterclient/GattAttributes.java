@@ -21,4 +21,6 @@ public class GattAttributes {
     public static final UUID UUID_NUM_SUGGESTIONS = UUID.fromString("12345678-1234-5678-1234-56789abcdefe");
     public static final UUID UUID_LLM_SELECTION = UUID.fromString("12345678-1234-5678-1234-56789abcdefd");
     public static final UUID UUID_IMAGE = UUID.fromString("12345678-1234-5678-1234-56789abcdff0");
+    public static final UUID UUID_IMAGE_REQUEST = UUID.fromString("12345678-1234-5678-1234-56789abcdff1");
+    public static final UUID UUID_AUGMENTED_IMAGE = UUID.fromString("12345678-1234-5678-1234-56789abcdff2");
 }
