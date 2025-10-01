@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_IMAGE_CAPTURE = 2;
     private static final int REQUEST_CAMERA_PERMISSION = 3;
     private String currentPhotoPath;
+    private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
 
     private enum BleConnectionStatus {
         DISCONNECTED,
@@ -88,6 +89,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
+        }
         setContentView(R.layout.activity_main);
 
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
@@ -186,8 +190,18 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
             Intent intent = new Intent(this, PreviewActivity.class);
-            intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
-            startActivity(intent);
+            if (currentPhotoPath != null) {
+                intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                startActivity(intent);
+            }
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (currentPhotoPath != null) {
+            outState.putString(KEY_PHOTO_PATH, currentPhotoPath);
         }
     }
 
