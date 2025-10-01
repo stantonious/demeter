@@ -18,5 +18,6 @@ public class GattAttributes {
     public static final UUID UUID_LIGHT = UUID.fromString("12345678-1234-5678-1234-56789abcdefc");
     public static final UUID UUID_LLM_STATUS = UUID.fromString("12345678-1234-5678-1234-56789abcdeff");
     public static final UUID UUID_PLANT_TYPE = UUID.fromString("12345678-1234-5678-1234-56789abcdefa");
+    public static final UUID UUID_NUM_SUGGESTIONS = UUID.fromString("12345678-1234-5678-1234-56789abcde00");
     public static final UUID UUID_LLM_SELECTION = UUID.fromString("12345678-1234-5678-1234-56789abcdefd");
 }

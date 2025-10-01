@@ -97,6 +97,33 @@
             android:text="Light: --"
             android:textSize="16sp" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Suggestion Options"
+            android:textStyle="bold"/>
+
+        <EditText
+            android:id="@+id/num_suggestions_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Number of Suggestions (e.g., 3)"
+            android:inputType="number" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Plant Type"/>
+
+        <Spinner
+            android:id="@+id/plant_type_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+
         <Button
             android:id="@+id/get_suggestion_button"
             android:layout_width="wrap_content"
