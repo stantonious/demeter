@@ -15,9 +15,13 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -28,9 +32,14 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,6 +65,11 @@ public class MainActivity extends AppCompatActivity {
     private TextView suggestionTextView;
     private EditText numSuggestionsEditText;
     private Spinner plantTypeSpinner;
+    private Button takePictureButton;
+
+    private static final int REQUEST_IMAGE_CAPTURE = 2;
+    private static final int REQUEST_CAMERA_PERMISSION = 3;
+    private String currentPhotoPath;
 
     private enum BleConnectionStatus {
         DISCONNECTED,
@@ -91,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
         suggestionTextView = findViewById(R.id.suggestion_text_view);
         numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
+        takePictureButton = findViewById(R.id.take_picture_button);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -100,6 +115,14 @@ public class MainActivity extends AppCompatActivity {
 
         getSuggestionButton.setOnClickListener(v -> {
             requestSuggestion();
+        });
+
+        takePictureButton.setOnClickListener(v -> {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+            } else {
+                dispatchTakePictureIntent();
+            }
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -149,7 +172,55 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 statusTextView.setText("Permissions not granted.");
             }
+        } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                dispatchTakePictureIntent();
+            } else {
+                statusTextView.setText("Camera permission denied.");
+            }
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+            Intent intent = new Intent(this, PreviewActivity.class);
+            intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+            startActivity(intent);
+        }
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Log.e(TAG, "Error creating image file", ex);
+            }
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(this,
+                        "com.example.demeterclient.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(
+                imageFileName,
+                ".jpg",
+                storageDir
+        );
+        currentPhotoPath = image.getAbsolutePath();
+        return image;
     }
 
     private void scanLeDevice(final boolean enable) {
