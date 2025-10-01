@@ -19,14 +19,22 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
@@ -40,19 +48,36 @@ public class MainActivity extends AppCompatActivity {
     private Handler handler;
     private BluetoothGatt bluetoothGatt;
 
+    private SwipeRefreshLayout swipeRefreshLayout;
+    private ImageView ledIndicator;
     private TextView statusTextView;
     private TextView nValue, pValue, kValue, phValue, humidityValue, sunValue, moistureValue, lightValue;
     private Button getSuggestionButton;
     private TextView suggestionTextView;
+    private EditText numSuggestionsEditText;
+    private Spinner plantTypeSpinner;
+
+    private enum BleConnectionStatus {
+        DISCONNECTED,
+        SCANNING,
+        CONNECTING,
+        CONNECTED,
+        ERROR
+    }
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
+
+    private Queue<Runnable> writeQueue = new LinkedList<>();
+    private boolean isWriting = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        ledIndicator = findViewById(R.id.led_indicator);
         statusTextView = findViewById(R.id.status_text_view);
         nValue = findViewById(R.id.n_value);
         pValue = findViewById(R.id.p_value);
@@ -64,9 +89,30 @@ public class MainActivity extends AppCompatActivity {
         lightValue = findViewById(R.id.light_value);
         getSuggestionButton = findViewById(R.id.get_suggestion_button);
         suggestionTextView = findViewById(R.id.suggestion_text_view);
+        numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
+        plantTypeSpinner = findViewById(R.id.plant_type_spinner);
+
+        // Populate the spinner
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.plant_types, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        plantTypeSpinner.setAdapter(adapter);
 
         getSuggestionButton.setOnClickListener(v -> {
             requestSuggestion();
+        });
+
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            if (bluetoothGatt != null) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    return;
+                }
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+                bluetoothGatt = null;
+            }
+            scanLeDevice(true);
+            swipeRefreshLayout.setRefreshing(false);
         });
 
         handler = new Handler();
@@ -129,10 +175,14 @@ public class MainActivity extends AppCompatActivity {
             ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
             statusTextView.setText("Scanning for Demeter...");
+            updateLedIndicator(BleConnectionStatus.SCANNING);
         } else {
             scanning = false;
             bluetoothLeScanner.stopScan(leScanCallback);
             statusTextView.setText("Scan stopped.");
+            if (bluetoothGatt == null) {
+                updateLedIndicator(BleConnectionStatus.DISCONNECTED);
+            }
         }
     }
 
@@ -153,22 +203,40 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
+        runOnUiThread(() -> {
+            updateLedIndicator(BleConnectionStatus.CONNECTING);
+            statusTextView.setText("Connecting to " + device.getAddress());
+        });
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            if (newState == BluetoothGatt.STATE_CONNECTED) {
-                Log.d(TAG, "Connected to GATT server.");
-                runOnUiThread(() -> statusTextView.setText("Connected"));
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    return;
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                if (newState == BluetoothGatt.STATE_CONNECTED) {
+                    Log.d(TAG, "Connected to GATT server.");
+                    runOnUiThread(() -> {
+                        updateLedIndicator(BleConnectionStatus.CONNECTED);
+                        statusTextView.setText("Connected");
+                    });
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+                    gatt.discoverServices();
+                } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                    Log.d(TAG, "Disconnected from GATT server.");
+                    runOnUiThread(() -> {
+                        updateLedIndicator(BleConnectionStatus.DISCONNECTED);
+                        statusTextView.setText("Disconnected");
+                    });
                 }
-                gatt.discoverServices();
-            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                Log.d(TAG, "Disconnected from GATT server.");
-                runOnUiThread(() -> statusTextView.setText("Disconnected"));
+            } else {
+                Log.e(TAG, "onConnectionStateChange received error status: " + status);
+                runOnUiThread(() -> {
+                    updateLedIndicator(BleConnectionStatus.ERROR);
+                    statusTextView.setText("Connection Error");
+                });
             }
         }
 
@@ -196,9 +264,19 @@ public class MainActivity extends AppCompatActivity {
         }
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
-                readLlmChunk();
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
+                if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
+                    // This is a special case for the LLM chunk reading logic
+                    readLlmChunk();
+                }
+            } else {
+                Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
+                writeQueue.clear(); // Clear the queue on failure
             }
+            // Process next write in the queue
+            isWriting = false;
+            processWriteQueue();
         }
 
         @Override
@@ -246,32 +324,91 @@ public class MainActivity extends AppCompatActivity {
     private void requestSuggestion() {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found");
+            return;
+        }
+
+        // Clear any pending writes
+        writeQueue.clear();
+        isWriting = false;
+
+        // --- Queue Number of Suggestions ---
+        BluetoothGattCharacteristic numSuggestionsChar = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
+        if (numSuggestionsChar != null) {
+            String numSuggestionsStr = numSuggestionsEditText.getText().toString();
+            int numSuggestions = 1; // Default value
+            if (!numSuggestionsStr.isEmpty()) {
+                try {
+                    numSuggestions = Integer.parseInt(numSuggestionsStr);
+                } catch (NumberFormatException e) {
+                    Log.e(TAG, "Invalid number format for suggestions", e);
+                    // Optionally show a toast to the user
+                }
+            }
+            byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
+            writeCharacteristicToQueue(numSuggestionsChar, numValue);
+        } else {
+            Log.e(TAG, "Num Suggestions characteristic not found");
+        }
+
+        // --- Queue Plant Type ---
         BluetoothGattCharacteristic plantTypeChar = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
-        if (plantTypeChar == null) return;
-
-        byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
-        plantTypeChar.setValue(value);
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return;
+        if (plantTypeChar != null) {
+            int plantTypeIndex = plantTypeSpinner.getSelectedItemPosition();
+            byte[] plantTypeValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantTypeIndex).array();
+            writeCharacteristicToQueue(plantTypeChar, plantTypeValue);
+        } else {
+            Log.e(TAG, "Plant Type characteristic not found");
         }
-        bluetoothGatt.writeCharacteristic(plantTypeChar);
+
+        // --- Queue Trigger Suggestion ---
         BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
-        if (suggestChar == null) return;
-
-        value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
-        suggestChar.setValue(value);
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return;
+        if (suggestChar != null) {
+            byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
+            writeCharacteristicToQueue(suggestChar, suggestValue);
+        } else {
+            Log.e(TAG, "Suggest characteristic not found");
         }
-        try{
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        bluetoothGatt.writeCharacteristic(suggestChar);
 
         runOnUiThread(() -> suggestionTextView.setText("Suggestion: Requesting..."));
+    }
+
+    private void writeCharacteristicToQueue(BluetoothGattCharacteristic characteristic, byte[] value) {
+        writeQueue.add(() -> {
+            if (bluetoothGatt != null && characteristic != null) {
+                characteristic.setValue(value);
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    isWriting = false;
+                    processWriteQueue();
+                    return;
+                }
+                boolean success = bluetoothGatt.writeCharacteristic(characteristic);
+                if (!success) {
+                    Log.e(TAG, "Failed to initiate write for characteristic " + characteristic.getUuid());
+                    isWriting = false;
+                    processWriteQueue();
+                }
+            } else {
+                Log.e(TAG, "GATT or characteristic is null, skipping write.");
+                isWriting = false;
+                processWriteQueue();
+            }
+        });
+        processWriteQueue();
+    }
+
+    private void processWriteQueue() {
+        if (isWriting || writeQueue.isEmpty()) {
+            return;
+        }
+        isWriting = true;
+        Runnable runnable = writeQueue.poll();
+        if (runnable != null) {
+            runnable.run();
+        } else {
+            isWriting = false;
+        }
     }
 
     private void fetchLlmResponse() {
@@ -417,5 +554,26 @@ public class MainActivity extends AppCompatActivity {
                 lightValue.setText(String.format("Light: %.2f", value));
             }
         });
+    }
+
+    private void updateLedIndicator(BleConnectionStatus status) {
+        int drawableId;
+        switch (status) {
+            case SCANNING:
+            case CONNECTING:
+                drawableId = R.drawable.led_yellow;
+                break;
+            case CONNECTED:
+                drawableId = R.drawable.led_green;
+                break;
+            case ERROR:
+                drawableId = R.drawable.led_red;
+                break;
+            case DISCONNECTED:
+            default:
+                drawableId = R.drawable.led_grey;
+                break;
+        }
+        runOnUiThread(() -> ledIndicator.setImageDrawable(ContextCompat.getDrawable(MainActivity.this, drawableId)));
     }
 }
