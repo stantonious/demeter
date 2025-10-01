@@ -21,6 +21,7 @@ import adafruit_bh1750
 from config import OPENAI_API_KEY
 from PIL import Image, ImageDraw
 import io
+import httpx
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -61,6 +62,8 @@ g_moisture_val = 0.0
 g_light_val = 0.0
 g_num_suggestions = 0
 g_augmented_image_data = bytearray()
+g_suggested_plant_name = ""
+g_generated_plant_image_data = bytearray()
 
 
 class Characteristic(dbus.service.Object):
@@ -604,33 +607,45 @@ class ImageChar(dbus.service.Object):
     @dbus.service.method("org.bluez.GattCharacteristic1",
                          in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        global g_augmented_image_data
+        global g_augmented_image_data, g_suggested_plant_name, g_generated_plant_image_data
         chunk = bytes(value)
         if chunk == b'EOT':
             try:
-                # Augment the image
-                image = Image.open(io.BytesIO(self.image_data))
-                draw = ImageDraw.Draw(image)
-                width, height = image.size
-                box_size = min(width, height) // 4
-                left = (width - box_size) // 2
-                top = (height - box_size) // 2
-                right = left + box_size
-                bottom = top + box_size
-                draw.rectangle([left, top, right, bottom], outline="yellow", width=5)
+                # Generate and download the DALL-E image in a separate thread
+                dalle_thread = threading.Thread(target=generate_dalle_image, args=(g_suggested_plant_name,))
+                dalle_thread.start()
+                dalle_thread.join()  # Wait for the image to be generated and downloaded
 
-                # Save augmented image to byte array
+                if not g_generated_plant_image_data:
+                    raise Exception("Failed to generate plant image.")
+
+                # Open the user's photo and the generated plant image
+                user_image = Image.open(io.BytesIO(self.image_data))
+                plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
+
+                # Composite the images
+                width, height = user_image.size
+                box_size = min(width, height) // 2
+                plant_image = plant_image.resize((box_size, box_size))
+
+                paste_x = (width - box_size) // 2
+                paste_y = (height - box_size) // 2
+
+                user_image.paste(plant_image, (paste_x, paste_y), plant_image)
+
+                # Save the final image to the global variable
                 output_buffer = io.BytesIO()
-                image.save(output_buffer, format="JPEG")
+                user_image.save(output_buffer, format="JPEG")
                 g_augmented_image_data = output_buffer.getvalue()
 
-                print("Image received and augmented successfully.")
+                print("Image composition successful.")
 
             except Exception as e:
-                print(f"Error processing image: {e}")
+                print(f"Error during image composition: {e}")
             finally:
-                # Clear the received image data
+                # Clear all temporary image data
                 self.image_data = bytearray()
+                g_generated_plant_image_data = bytearray()
         else:
             self.image_data.extend(chunk)
             print(f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
@@ -763,7 +778,7 @@ def generate_ollama_response(prompt, llm_status_char):
 
 
 def generate_chatgpt_response(prompt, llm_status_char):
-    global current_llm_response, is_generating
+    global current_llm_response, is_generating, g_suggested_plant_name
     if is_generating:
         return
 
@@ -788,12 +803,52 @@ def generate_chatgpt_response(prompt, llm_status_char):
         response = completion.choices[0].message.content
         current_llm_response = response
         print('got openai res in background:', current_llm_response)
+
+        # Parse and store the first suggested plant name
+        lines = response.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith(('-', '*')):
+                plant_name = line.lstrip('*- ').strip()
+                g_suggested_plant_name = plant_name
+                print(f"Stored suggested plant name: {g_suggested_plant_name}")
+                break  # Found the first one
     except Exception as e:
         print(f"Error in openai generation: {e}")
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
         llm_status_char.set_status(2)  # Ready
+
+
+def generate_dalle_image(plant_name):
+    global g_generated_plant_image_data
+    if not plant_name:
+        print("No plant name available to generate an image.")
+        return
+
+    try:
+        print(f"Generating DALL-E image for: {plant_name}")
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=f"A clear, high-quality image of a {plant_name} plant on a transparent background.",
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+        image_url = response.data[0].url
+        print(f"Generated image URL: {image_url}")
+
+        # Download the image
+        with httpx.stream("GET", image_url) as r:
+            image_data = bytearray()
+            for chunk in r.iter_bytes():
+                image_data.extend(chunk)
+            g_generated_plant_image_data = image_data
+            print("Successfully downloaded generated image.")
+
+    except Exception as e:
+        print(f"Error generating or downloading DALL-E image: {e}")
 
 
 def generate_llm_response(prompt, llm_status_char):

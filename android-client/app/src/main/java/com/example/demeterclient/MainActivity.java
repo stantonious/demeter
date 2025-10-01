@@ -130,6 +130,9 @@ public class MainActivity extends AppCompatActivity {
         getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
         augmentedImageView = findViewById(R.id.augmented_image_view);
 
+        takePictureButton.setEnabled(false);
+        getAugmentedImageButton.setEnabled(false);
+
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
                 R.array.plant_types, android.R.layout.simple_spinner_item);
@@ -398,7 +401,12 @@ public class MainActivity extends AppCompatActivity {
                     if (data != null && data.length > 0) {
                         suggestionBuilder.append(new String(data));
                         if (data.length < 225) {
-                            runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
+                            runOnUiThread(() -> {
+                                suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString());
+                                takePictureButton.setEnabled(true);
+                                getAugmentedImageButton.setEnabled(true);
+                                Toast.makeText(MainActivity.this, "Suggestion received. You can now take a picture.", Toast.LENGTH_LONG).show();
+                            });
                         } else {
                             llmOffset += data.length;
                             requestLlmChunk();
@@ -782,7 +790,7 @@ public class MainActivity extends AppCompatActivity {
         augmentedImageStream.reset();
         imageReadOffset = 0;
         augmentedImageView.setVisibility(View.GONE);
-        Toast.makeText(this, "Fetching augmented image...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Generating and fetching augmented image... Please wait.", Toast.LENGTH_LONG).show();
         requestAugmentedImageChunk();
     }
 
