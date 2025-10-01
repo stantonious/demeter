@@ -20,6 +20,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
@@ -196,20 +198,27 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            if (currentPhotoPath != null) {
-                Intent intent = new Intent(this, PreviewActivity.class);
-                intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
-                startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
-            }
-        } else if (requestCode == REQUEST_PREVIEW_IMAGE && resultCode == RESULT_OK) {
-            if (data != null) {
-                String imageUriString = data.getStringExtra("image_uri");
-                if (imageUriString != null) {
-                    Uri imageUri = Uri.parse(imageUriString);
-                    sendImage(imageUri);
+        if (resultCode != RESULT_OK) {
+            return;
+        }
+
+        switch (requestCode) {
+            case REQUEST_IMAGE_CAPTURE:
+                if (currentPhotoPath != null) {
+                    Intent intent = new Intent(this, PreviewActivity.class);
+                    intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                    startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
                 }
-            }
+                break;
+            case REQUEST_PREVIEW_IMAGE:
+                if (data != null) {
+                    String imageUriString = data.getStringExtra("image_uri");
+                    if (imageUriString != null) {
+                        Uri imageUri = Uri.parse(imageUriString);
+                        sendImage(imageUri);
+                    }
+                }
+                break;
         }
     }
 
@@ -667,14 +676,13 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
+
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                    byteStream.write(buffer, 0, bytesRead);
-                }
+                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
                 byte[] imageData = byteStream.toByteArray();
-                Log.d(TAG, "Image size: " + imageData.length + " bytes");
+                Log.d(TAG, "Downsampled image size: " + imageData.length + " bytes");
 
                 int chunkSize = 512;
                 for (int i = 0; i < imageData.length; i += chunkSize) {
