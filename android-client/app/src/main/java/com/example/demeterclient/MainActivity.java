@@ -20,9 +20,12 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collections;
@@ -40,10 +43,20 @@ public class MainActivity extends AppCompatActivity {
     private Handler handler;
     private BluetoothGatt bluetoothGatt;
 
+    private SwipeRefreshLayout swipeRefreshLayout;
+    private ImageView ledIndicator;
     private TextView statusTextView;
     private TextView nValue, pValue, kValue, phValue, humidityValue, sunValue, moistureValue, lightValue;
     private Button getSuggestionButton;
     private TextView suggestionTextView;
+
+    private enum BleConnectionStatus {
+        DISCONNECTED,
+        SCANNING,
+        CONNECTING,
+        CONNECTED,
+        ERROR
+    }
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -53,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        ledIndicator = findViewById(R.id.led_indicator);
         statusTextView = findViewById(R.id.status_text_view);
         nValue = findViewById(R.id.n_value);
         pValue = findViewById(R.id.p_value);
@@ -67,6 +82,19 @@ public class MainActivity extends AppCompatActivity {
 
         getSuggestionButton.setOnClickListener(v -> {
             requestSuggestion();
+        });
+
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            if (bluetoothGatt != null) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    return;
+                }
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+                bluetoothGatt = null;
+            }
+            scanLeDevice(true);
+            swipeRefreshLayout.setRefreshing(false);
         });
 
         handler = new Handler();
@@ -129,10 +157,14 @@ public class MainActivity extends AppCompatActivity {
             ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
             statusTextView.setText("Scanning for Demeter...");
+            updateLedIndicator(BleConnectionStatus.SCANNING);
         } else {
             scanning = false;
             bluetoothLeScanner.stopScan(leScanCallback);
             statusTextView.setText("Scan stopped.");
+            if (bluetoothGatt == null) {
+                updateLedIndicator(BleConnectionStatus.DISCONNECTED);
+            }
         }
     }
 
@@ -153,22 +185,40 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
+        runOnUiThread(() -> {
+            updateLedIndicator(BleConnectionStatus.CONNECTING);
+            statusTextView.setText("Connecting to " + device.getAddress());
+        });
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            if (newState == BluetoothGatt.STATE_CONNECTED) {
-                Log.d(TAG, "Connected to GATT server.");
-                runOnUiThread(() -> statusTextView.setText("Connected"));
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    return;
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                if (newState == BluetoothGatt.STATE_CONNECTED) {
+                    Log.d(TAG, "Connected to GATT server.");
+                    runOnUiThread(() -> {
+                        updateLedIndicator(BleConnectionStatus.CONNECTED);
+                        statusTextView.setText("Connected");
+                    });
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+                    gatt.discoverServices();
+                } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                    Log.d(TAG, "Disconnected from GATT server.");
+                    runOnUiThread(() -> {
+                        updateLedIndicator(BleConnectionStatus.DISCONNECTED);
+                        statusTextView.setText("Disconnected");
+                    });
                 }
-                gatt.discoverServices();
-            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                Log.d(TAG, "Disconnected from GATT server.");
-                runOnUiThread(() -> statusTextView.setText("Disconnected"));
+            } else {
+                Log.e(TAG, "onConnectionStateChange received error status: " + status);
+                runOnUiThread(() -> {
+                    updateLedIndicator(BleConnectionStatus.ERROR);
+                    statusTextView.setText("Connection Error");
+                });
             }
         }
 
@@ -417,5 +467,26 @@ public class MainActivity extends AppCompatActivity {
                 lightValue.setText(String.format("Light: %.2f", value));
             }
         });
+    }
+
+    private void updateLedIndicator(BleConnectionStatus status) {
+        int drawableId;
+        switch (status) {
+            case SCANNING:
+            case CONNECTING:
+                drawableId = R.drawable.led_yellow;
+                break;
+            case CONNECTED:
+                drawableId = R.drawable.led_green;
+                break;
+            case ERROR:
+                drawableId = R.drawable.led_red;
+                break;
+            case DISCONNECTED:
+            default:
+                drawableId = R.drawable.led_grey;
+                break;
+        }
+        runOnUiThread(() -> ledIndicator.setImageDrawable(ContextCompat.getDrawable(MainActivity.this, drawableId)));
     }
 }
