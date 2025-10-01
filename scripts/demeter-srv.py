@@ -25,7 +25,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
 CHAR_VALUE = [dbus.Byte(0x00)]
-
+ADVERTISEMENT_INTERFACE = 'org.bluez.LEAdvertisement1'
+DBUS_PROP_IFACE = 'org.freedesktop.DBus.Properties'
 
 
 # Raw Modbus request: Read 3 registers starting at 0x001E
@@ -56,6 +57,7 @@ g_plant_type = 'ground cover'
 g_humidity_val = 0.0
 g_moisture_val = 0.0
 g_light_val = 0.0
+g_num_suggestions = 0
 
 
 class Characteristic(dbus.service.Object):
@@ -107,9 +109,7 @@ class Characteristic(dbus.service.Object):
 
     def _notify(self):
         if not self.notifying:
-            print ('ret')
             return False
-        print ('notif')
         self.PropertiesChanged("org.bluez.GattCharacteristic1",
                                {"Value": [(sensor_val + 1) % 255]}, [])
         return True
@@ -232,6 +232,7 @@ class PhChar(dbus.service.Object):
                          signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
+
 
 class HumidChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -403,6 +404,7 @@ class SunChar(dbus.service.Object):
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
 
+
 class NitChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -459,6 +461,7 @@ class NitChar(dbus.service.Object):
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
 
+
 class KChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -514,6 +517,7 @@ class KChar(dbus.service.Object):
                          signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
+
 
 class PChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -576,8 +580,9 @@ current_llm_response = ""
 is_generating = False
 g_llm_prompt = ""
 
-def update_generating_status(start_time,prompt=''):
-    print ('status p',prompt)
+
+def update_generating_status(start_time, prompt=''):
+    print('status p', prompt)
     global current_llm_response
     while is_generating:
         elapsed = int(time.time() - start_time)
@@ -589,7 +594,7 @@ def generate_plant_prompt(
     n_mgkg, p_mgkg, k_mgkg, ph, moisture, sunlight,
     lat, lon, soil_type, plant_type, max_plants=3
 ):
-    print ('ptype',plant_type)
+    print('ptype', plant_type)
     prompt = (
         f"Suggest {max_plants} {plant_type} plant types for a location ({lat}, {lon}) with {soil_type} soil.\n"
         f"Soil composition is: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
@@ -598,17 +603,19 @@ def generate_plant_prompt(
     )
     return prompt
 
+
 def generate_ollama_response(prompt, llm_status_char):
     global current_llm_response, is_generating
     if is_generating:
         return
 
     is_generating = True
-    llm_status_char.set_status(1) # Generating
+    llm_status_char.set_status(1)  # Generating
     print('starting ollama req in background')
     start_time = time.time()
 
-    counter_thread = threading.Thread(target=update_generating_status, args=(start_time,g_llm_prompt))
+    counter_thread = threading.Thread(
+        target=update_generating_status, args=(start_time, g_llm_prompt))
     counter_thread.daemon = True
     counter_thread.start()
 
@@ -621,7 +628,7 @@ def generate_ollama_response(prompt, llm_status_char):
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
-        llm_status_char.set_status(2) # Ready
+        llm_status_char.set_status(2)  # Ready
 
 
 def generate_chatgpt_response(prompt, llm_status_char):
@@ -634,7 +641,8 @@ def generate_chatgpt_response(prompt, llm_status_char):
     print('starting openai req in background')
     start_time = time.time()
 
-    counter_thread = threading.Thread(target=update_generating_status, args=(start_time, g_llm_prompt))
+    counter_thread = threading.Thread(
+        target=update_generating_status, args=(start_time, g_llm_prompt))
     counter_thread.daemon = True
     counter_thread.start()
 
@@ -656,18 +664,22 @@ def generate_chatgpt_response(prompt, llm_status_char):
         is_generating = False
         llm_status_char.set_status(2)  # Ready
 
-def generate_llm_response(prompt, llm_status_char):
-    if g_llm_backend == 1:
-        generate_chatgpt_response(prompt, llm_status_char)
-    else:
-        generate_ollama_response(prompt, llm_status_char)
 
-location_lat="39.5186"
-location_lon="-104.7614"
+def generate_llm_response(prompt, llm_status_char):
+    generate_chatgpt_response(prompt, llm_status_char)
+    #if g_llm_backend == 1:
+    #    generate_chatgpt_response(prompt, llm_status_char)
+    #else:
+    #    generate_ollama_response(prompt, llm_status_char)
+
+
+location_lat = "39.5186"
+location_lon = "-104.7614"
 sun_amount = "6"
-ph_level="7."
+ph_level = "7."
 soil_moister_level = "semi-dry"
-relative_humidity_level = "19" #percent
+relative_humidity_level = "19"  # percent
+
 
 class PlantTypeChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -713,12 +725,13 @@ class PlantTypeChar(dbus.service.Object):
                 g_plant_type = 'shrub'
             elif written_value == 3:
                 g_plant_type = 'flowering'
-            print ('setting plant type to ',g_plant_type)
+            print('setting plant type to ', g_plant_type)
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
 
-g_llm_backend = 0 # 0 for tinyllm, 1 for chatgpt
+g_llm_backend = 0  # 0 for tinyllm, 1 for chatgpt
+
 
 class LlmSelectionChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
@@ -757,13 +770,60 @@ class LlmSelectionChar(dbus.service.Object):
             print(f"Set llm backend to: {written_value}")
             if written_value == 0:
                 g_llm_backend = 0
-                print ('setting llm backend to tinyllm')
+                print('setting llm backend to tinyllm')
             elif written_value == 1:
                 g_llm_backend = 1
-                print ('setting llm backend to chatgpt')
+                print('setting llm backend to chatgpt')
             self.value = written_value
         else:
-            print(f"Received invalid byte array length for LLM selection: {len(value)}")
+            print(
+                f"Received invalid byte array length for LLM selection: {len(value)}")
+
+
+class NumSuggestionsChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = g_num_suggestions  # Default to global
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_num_suggestions
+        if len(value) == 4:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            if 1 <= written_value <= 5:
+                print(f"Set num suggestions to: {written_value}")
+                g_num_suggestions = written_value
+                self.value = written_value
+            else:
+                print(
+                    f"Invalid number of suggestions: {written_value}. Must be between 1 and 5.")
+        else:
+            print(
+                f"Received invalid byte array length for num suggestions: {len(value)}")
 
 
 class IntWritableChar(dbus.service.Object):
@@ -807,13 +867,15 @@ class IntWritableChar(dbus.service.Object):
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set integer value to: {written_value}")
             if written_value == 0:
-                self.value = 1 # set offset to 1
+                self.value = 1  # set offset to 1
                 if not is_generating:
-                    print ('generating',g_plant_type)
-                    g_llm_prompt = generate_plant_prompt(nit_val,phr_val,pot_val,ph=7.0,moisture='moderate',sunlight=sun_amount,lat=location_lat,lon=location_lon,soil_type='normal',plant_type=g_plant_type,max_plants=1)
-                    print ('sending llm req',g_llm_prompt)
+                    print('generating', g_plant_type)
+                    g_llm_prompt = generate_plant_prompt(nit_val, phr_val, pot_val, ph=7.0, moisture='moderate', sunlight=sun_amount,
+                                                         lat=location_lat, lon=location_lon, soil_type='normal', plant_type=g_plant_type, max_plants=g_num_suggestions)
+                    print('sending llm req', g_llm_prompt)
                     # Pass the llm_status_char to the thread
-                    thread = threading.Thread(target=generate_llm_response, args=(g_llm_prompt,self.service.llm_status_char))
+                    thread = threading.Thread(target=generate_llm_response, args=(
+                        g_llm_prompt, self.service.llm_status_char))
                     thread.daemon = True
                     thread.start()
                 else:
@@ -851,7 +913,8 @@ class LlmStatusChar(dbus.service.Object):
         if status != self.status:
             self.status = status
             if self.notifying:
-                self.PropertiesChanged("org.bluez.GattCharacteristic1", {"Value": [dbus.Byte(self.status)]}, [])
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {
+                                       "Value": [dbus.Byte(self.status)]}, [])
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
     def ReadValue(self, options):
@@ -859,17 +922,29 @@ class LlmStatusChar(dbus.service.Object):
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
     def StartNotify(self):
+        print ('llm status notif')
         if self.notifying:
             return
         self.notifying = True
+        GLib.timeout_add_seconds(2, self._notify)
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
     def StopNotify(self):
         self.notifying = False
 
+    def _notify(self):
+        if not self.notifying:
+            return False
+        packed = struct.pack('<f', self.status)
+        print ('llm status ',self.status)
+        self.PropertiesChanged("org.bluez.GattCharacteristic1",
+                               {"Value": [dbus.Byte(b) for b in packed]}, [])
+        return True
+
     @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
     def PropertiesChanged(self, interface, changed, invalidated):
         pass
+
 
 class StringChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service, suggest_char):
@@ -898,14 +973,50 @@ class StringChar(dbus.service.Object):
     def ReadValue(self, options):
         offset = self.suggest_char.value
         if offset > 0:
-            start_index = offset -1
+            start_index = offset - 1
             end_index = start_index + 225
             chunk = current_llm_response[start_index:end_index]
-            print(f"Reading llm response chunk (offset: {offset}): {chunk} total:{current_llm_response}")
+            print(
+                f"Reading llm response chunk (offset: {offset}): {chunk} total:{current_llm_response}")
             return [dbus.Byte(c) for c in chunk.encode('utf-8')]
         else:
             # Return empty or some default if offset is not set
             return []
+
+
+
+
+class Advertisement(dbus.service.Object):
+    def __init__(self, bus, index, service_uuid):
+        self.path = f"/org/bluez/example/advertisement{index}"
+        self.bus = bus
+        self.service_uuid = service_uuid
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            ADVERTISEMENT_INTERFACE: {
+                'Type': dbus.String('peripheral'),
+                'ServiceUUIDs': dbus.Array([self.service_uuid], signature='s'),
+                'LocalName': dbus.String('demeter'),
+                'IncludeTxPower': dbus.Boolean(True),
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method('org.freedesktop.DBus.Properties',
+                         in_signature='s', out_signature='a{sv}')
+    def GetAll(self, interface):
+        return self.get_properties()[interface]
+
+    @dbus.service.method(ADVERTISEMENT_INTERFACE,
+                         in_signature='', out_signature='')
+    def Release(self):
+        print("Advertisement released")
+
+
 
 
 class Service(dbus.service.Object):
@@ -955,7 +1066,9 @@ class ADSSensor(threading.Thread):
             # Scale and invert moisture value based on calibration
             raw_moisture = self.chan2.value
             # Handles the inverted reading (lower ADC value means more moisture)
-            moisture_scaled = 100.0 * (MOISTURE_ADC_DRY - raw_moisture) / (MOISTURE_ADC_DRY - MOISTURE_ADC_WET)
+            moisture_scaled = 100.0 * \
+                (MOISTURE_ADC_DRY - raw_moisture) / \
+                (MOISTURE_ADC_DRY - MOISTURE_ADC_WET)
 
             # Clamp the value between 0 and 100
             g_moisture_val = max(0.0, min(100.0, moisture_scaled))
@@ -1015,38 +1128,36 @@ class Application(dbus.service.Object):
         return response
 
 
-
 class NpkSensor(threading.Thread):
     def __init__(self):
         super().__init__()
         self.duty_cycle_delay = .05
         self.running = True
 
-
     def stop(self):
         self.running = False
 
-    def parse_response(self,response):
+    def parse_response(self, response):
         global nit_val
         global pot_val
         global phr_val
         if len(response) < 9:
-            #print("Incomplete response:", response.hex())
+            # print("Incomplete response:", response.hex())
             return
 
         byte_count = response[2]
         if byte_count != 6:
-            #print("Unexpected byte count:", byte_count)
+            # print("Unexpected byte count:", byte_count)
             return
 
         npk_raw = response[3:9]
-        nit_val   = struct.unpack(">H", npk_raw[0:2])[0]
+        nit_val = struct.unpack(">H", npk_raw[0:2])[0]
         phr_val = struct.unpack(">H", npk_raw[2:4])[0]
-        pot_val  = struct.unpack(">H", npk_raw[4:6])[0]
+        pot_val = struct.unpack(">H", npk_raw[4:6])[0]
 
-        #print(f"Nitrogen:   {nit_val} mg/kg")
-        #print(f"Phosphorus: {phr_val} mg/kg")
-        #print(f"Potassium:  {pot_val} mg/kg")
+        # print(f"Nitrogen:   {nit_val} mg/kg")
+        # print(f"Phosphorus: {phr_val} mg/kg")
+        # print(f"Potassium:  {pot_val} mg/kg")
 
     def read_npk(self):
         try:
@@ -1056,7 +1167,7 @@ class NpkSensor(threading.Thread):
                 # Enable transmit mode
                 GPIO.output(TX_ENABLE_PIN, GPIO.HIGH)
                 time.sleep(0.02)
-    
+
                 ser.write(modbus_request)
                 ser.flush()
 
@@ -1069,20 +1180,19 @@ class NpkSensor(threading.Thread):
         except Exception as e:
             print(f"Communication error: {e}")
 
-
     def duty_cycle(self):
-        #print ('starting duty cycle')
+        # print ('starting duty cycle')
         try:
             self.read_npk()
         except Exception as e:
             GPIO.cleanup()
             raise e
 
-
     def run(self):
         while self.running:
             self.duty_cycle()
             time.sleep(self.duty_cycle_delay)
+
 
 def main():
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -1093,47 +1203,53 @@ def main():
     char = Characteristic(bus, 0, CHAR_UUID, ["read", "notify"], service)
     service.characteristics.append(char)
     nit_char = NitChar(bus, 1,
-    "12345678-1234-5678-1234-56789abcdef2", ["read", "notify"], service)
+                       "12345678-1234-5678-1234-56789abcdef2", ["read", "notify"], service)
     service.characteristics.append(nit_char)
     k_char = KChar(bus, 2,
-    "12345678-1234-5678-1234-56789abcdef3", ["read", "notify"], service)
+                   "12345678-1234-5678-1234-56789abcdef3", ["read", "notify"], service)
     service.characteristics.append(k_char)
     p_char = PChar(bus, 3,
-    "12345678-1234-5678-1234-56789abcdef4", ["read", "notify"], service)
+                   "12345678-1234-5678-1234-56789abcdef4", ["read", "notify"], service)
     service.characteristics.append(p_char)
     int_writable_char = IntWritableChar(bus, 4,
-    "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
+                                        "12345678-1234-5678-1234-56789abcdef5", ["read", "write"], service)
     service.characteristics.append(int_writable_char)
     llm_response_char = StringChar(bus, 5,
-    "12345678-1234-5678-1234-56789abcdef6", ["read"], service, int_writable_char)
+                                   "12345678-1234-5678-1234-56789abcdef6", ["read"], service, int_writable_char)
     service.characteristics.append(llm_response_char)
     ph_char = PhChar(bus, 6,
-    "12345678-1234-5678-1234-56789abcdef7", ["read", "notify"], service)
+                     "12345678-1234-5678-1234-56789abcdef7", ["read", "notify"], service)
     service.characteristics.append(ph_char)
     humid_char = HumidChar(bus, 7,
-    "12345678-1234-5678-1234-56789abcdef8", ["read", "notify"], service)
+                           "12345678-1234-5678-1234-56789abcdef8", ["read", "notify"], service)
     service.characteristics.append(humid_char)
     sun_char = SunChar(bus, 8,
-    "12345678-1234-5678-1234-56789abcdef9", ["read", "notify"], service)
+                       "12345678-1234-5678-1234-56789abcdef9", ["read", "notify"], service)
     service.characteristics.append(sun_char)
     llm_status_char = LlmStatusChar(bus, 9,
-    "12345678-1234-5678-1234-56789abcdeff", ["read", "notify"], service)
+                                    "12345678-1234-5678-1234-56789abcdeff", ["read", "notify"], service)
     service.characteristics.append(llm_status_char)
     plant_type_char = PlantTypeChar(bus, 10,
-    "12345678-1234-5678-1234-56789abcdefa", ["write"], service)
+                                    "12345678-1234-5678-1234-56789abcdefa", ["write"], service)
     service.characteristics.append(plant_type_char)
 
     ground_moisture_char = GroundMoistureChar(bus, 11,
-    "12345678-1234-5678-1234-56789abcdefb", ["read", "notify"], service)
+                                              "12345678-1234-5678-1234-56789abcdefb", ["read", "notify"], service)
     service.characteristics.append(ground_moisture_char)
 
     light_char = LightChar(bus, 12,
-    "12345678-1234-5678-1234-56789abcdefc", ["read", "notify"], service)
+                           "12345678-1234-5678-1234-56789abcdefc", ["read", "notify"], service)
     service.characteristics.append(light_char)
 
     llm_selection_char = LlmSelectionChar(bus, 13,
-    "12345678-1234-5678-1234-56789abcdefd", ["read", "write"], service)
+                                          "12345678-1234-5678-1234-56789abcdefd", ["read", "write"], service)
     service.characteristics.append(llm_selection_char)
+
+    num_suggestions_char = NumSuggestionsChar(bus, 14,
+                                              "12345678-1234-5678-1234-56789abcdefe", ["read", "write"], service)
+    service.characteristics.append(num_suggestions_char)
+
+    ad = Advertisement(bus, 0,SERVICE_UUID)
 
     service.llm_status_char = llm_status_char
     app.add_service(service)
@@ -1142,8 +1258,16 @@ def main():
     gatt_manager = dbus.Interface(bus.get_object("org.bluez", adapter_path),
                                   "org.bluez.GattManager1")
 
+    ad_manager = dbus.Interface(bus.get_object("org.bluez", adapter_path),
+                                "org.bluez.LEAdvertisingManager1")
+
+    ad_manager.RegisterAdvertisement(ad.get_path(), dbus.Dictionary({}, signature='sv'),
+                                       reply_handler=lambda: print(
+                                           "Advertisement registered"),
+                                       error_handler=lambda e: print("Failed to register ad:", e))
     gatt_manager.RegisterApplication(app.get_path(), {},
-                                     reply_handler=lambda: print("GATT app registered"),
+                                     reply_handler=lambda: print(
+                                         "GATT app registered"),
                                      error_handler=lambda e: print(f"Failed to register: {e}"))
 
     npk = NpkSensor()
@@ -1159,6 +1283,7 @@ def main():
     npk.stop()
     ads_sensor.stop()
     bh1750_sensor.stop()
+
 
 if __name__ == "__main__":
     main()
