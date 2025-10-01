@@ -611,26 +611,38 @@ class ImageChar(dbus.service.Object):
         chunk = bytes(value)
         if chunk == b'EOT':
             try:
-                # Generate and download the DALL-E image in a separate thread
+                # Open the user's photo
+                user_image = Image.open(io.BytesIO(self.image_data))
+                draw = ImageDraw.Draw(user_image)
+                width, height = user_image.size
+
+                # Draw the yellow box first
+                box_size = min(width, height) // 2
+                left = (width - box_size) // 2
+                top = (height - box_size) // 2
+                right = left + box_size
+                bottom = top + box_size
+                draw.rectangle([left, top, right, bottom], outline="yellow", width=10)
+
+                # Generate and download the DALL-E image
                 dalle_thread = threading.Thread(target=generate_dalle_image, args=(g_suggested_plant_name,))
                 dalle_thread.start()
-                dalle_thread.join()  # Wait for the image to be generated and downloaded
+                dalle_thread.join()
 
                 if not g_generated_plant_image_data:
                     raise Exception("Failed to generate plant image.")
 
-                # Open the user's photo and the generated plant image
-                user_image = Image.open(io.BytesIO(self.image_data))
+                # Open the generated plant image
                 plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
 
-                # Composite the images
-                width, height = user_image.size
-                box_size = min(width, height) // 2
-                plant_image = plant_image.resize((box_size, box_size))
+                # Resize plant image to fit inside the box with a small margin
+                margin = 20
+                plant_size = box_size - (2 * margin)
+                plant_image = plant_image.resize((plant_size, plant_size))
 
-                paste_x = (width - box_size) // 2
-                paste_y = (height - box_size) // 2
-
+                # Paste the plant image inside the box
+                paste_x = left + margin
+                paste_y = top + margin
                 user_image.paste(plant_image, (paste_x, paste_y), plant_image)
 
                 # Save the final image to the global variable
