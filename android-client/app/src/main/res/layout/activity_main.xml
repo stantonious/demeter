@@ -42,62 +42,6 @@
             </RelativeLayout>
 
         <TextView
-            android:id="@+id/n_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="N: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/p_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="P: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/k_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="K: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/ph_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="pH: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/humidity_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Humidity: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/sun_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Sun: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/moisture_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Moisture: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/light_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Light: --"
-            android:textSize="16sp" />
-
-        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"

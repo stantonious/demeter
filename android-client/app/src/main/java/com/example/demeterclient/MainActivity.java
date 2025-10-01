@@ -62,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout swipeRefreshLayout;
     private ImageView ledIndicator;
     private TextView statusTextView;
-    private TextView nValue, pValue, kValue, phValue, humidityValue, sunValue, moistureValue, lightValue;
     private Button getSuggestionButton;
     private TextView suggestionTextView;
     private EditText numSuggestionsEditText;
@@ -110,14 +109,6 @@ public class MainActivity extends AppCompatActivity {
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
         ledIndicator = findViewById(R.id.led_indicator);
         statusTextView = findViewById(R.id.status_text_view);
-        nValue = findViewById(R.id.n_value);
-        pValue = findViewById(R.id.p_value);
-        kValue = findViewById(R.id.k_value);
-        phValue = findViewById(R.id.ph_value);
-        humidityValue = findViewById(R.id.humidity_value);
-        sunValue = findViewById(R.id.sun_value);
-        moistureValue = findViewById(R.id.moisture_value);
-        lightValue = findViewById(R.id.light_value);
         getSuggestionButton = findViewById(R.id.get_suggestion_button);
         suggestionTextView = findViewById(R.id.suggestion_text_view);
         numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
@@ -636,28 +627,20 @@ public class MainActivity extends AppCompatActivity {
 
         runOnUiThread(() -> {
             if (uuid.equals(GattAttributes.UUID_N)) {
-                nValue.setText(String.format("N: %.2f", value));
                 addHistory(nHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_P)) {
-                pValue.setText(String.format("P: %.2f", value));
                 addHistory(pHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_K)) {
-                kValue.setText(String.format("K: %.2f", value));
                 addHistory(kHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_PH)) {
-                phValue.setText(String.format("pH: %.2f", value));
                 addHistory(phHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_HUMID)) {
-                humidityValue.setText(String.format("Humidity: %.2f", value));
                 addHistory(humidityHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_SUN)) {
-                sunValue.setText(String.format("Sun: %.2f", value));
                 addHistory(sunHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_MOISTURE)) {
-                moistureValue.setText(String.format("Moisture: %.2f", value));
                 addHistory(moistureHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_LIGHT)) {
-                lightValue.setText(String.format("Light: %.2f", value));
                 addHistory(lightHistory, value);
             }
 
