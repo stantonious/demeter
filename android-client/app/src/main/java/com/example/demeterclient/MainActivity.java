@@ -122,7 +122,8 @@ public class MainActivity extends AppCompatActivity {
 
             scanning = true;
             ScanFilter filter = new ScanFilter.Builder()
-                .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
+
+              .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
                 .build();
             List<ScanFilter> filters = Collections.singletonList(filter);
             ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
