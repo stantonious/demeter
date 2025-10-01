@@ -153,12 +153,10 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter = bluetoothManager.getAdapter();
 
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            // Inform the user that Bluetooth is not enabled
             statusTextView.setText("Bluetooth is not enabled");
             return;
         }
 
-        // Request permissions
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -244,7 +242,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void scanLeDevice(final boolean enable) {
         if (enable) {
-            // Stops scanning after a pre-defined scan period.
             handler.postDelayed(() -> {
                 if (scanning) {
                     scanning = false;
@@ -258,7 +255,6 @@ public class MainActivity extends AppCompatActivity {
 
             scanning = true;
             ScanFilter filter = new ScanFilter.Builder()
-
               .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
                 .build();
             List<ScanFilter> filters = Collections.singletonList(filter);
@@ -330,26 +326,18 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // In your gattCallback:
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
-            UUID characteristicUuid = descriptor.getCharacteristic().getUuid(); // Get which characteristic this was for
-
+            UUID characteristicUuid = descriptor.getCharacteristic().getUuid();
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "Descriptor write successful for: " + characteristicUuid);
             } else {
                 Log.e(TAG, "Descriptor write failed for: " + characteristicUuid + " with status: " + status);
             }
-
-            // Check if this descriptor write was part of our sequential subscription
             if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
-                // Check if the UUID matches the one we were trying to subscribe to,
-                // though simply incrementing and trying next is often sufficient
-                // if (characteristicUuid.equals(characteristicsToSubscribe.get(currentSubscriptionIndex))) {
                 currentSubscriptionIndex++;
                 subscribeNextCharacteristic(gatt);
-                // }
             }
         }
         @Override
@@ -357,14 +345,12 @@ public class MainActivity extends AppCompatActivity {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
-                    // This is a special case for the LLM chunk reading logic
                     readLlmChunk();
                 }
             } else {
                 Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
-                writeQueue.clear(); // Clear the queue on failure
+                writeQueue.clear();
             }
-            // Process next write in the queue
             isWriting = false;
             processWriteQueue();
         }
@@ -376,10 +362,8 @@ public class MainActivity extends AppCompatActivity {
                 if (data != null && data.length > 0) {
                     suggestionBuilder.append(new String(data));
                     if (data.length < 225) {
-                        // End of message
                         runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
                     } else {
-                        // More data to read
                         llmOffset += data.length;
                         requestLlmChunk();
                     }
@@ -399,9 +383,9 @@ public class MainActivity extends AppCompatActivity {
             if (characteristic.getUuid().equals(GattAttributes.UUID_LLM_STATUS)) {
                 int llmStatus = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                 runOnUiThread(() -> {
-                    if (llmStatus == 1) { // Generating
+                    if (llmStatus == 1) {
                         suggestionTextView.setText("Suggestion: Generating...");
-                    } else if (llmStatus == 2) { // Ready
+                    } else if (llmStatus == 2) {
                         fetchLlmResponse();
                     }
                 });
@@ -419,21 +403,18 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Clear any pending writes
         writeQueue.clear();
         isWriting = false;
 
-        // --- Queue Number of Suggestions ---
         BluetoothGattCharacteristic numSuggestionsChar = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
         if (numSuggestionsChar != null) {
             String numSuggestionsStr = numSuggestionsEditText.getText().toString();
-            int numSuggestions = 1; // Default value
+            int numSuggestions = 1;
             if (!numSuggestionsStr.isEmpty()) {
                 try {
                     numSuggestions = Integer.parseInt(numSuggestionsStr);
                 } catch (NumberFormatException e) {
                     Log.e(TAG, "Invalid number format for suggestions", e);
-                    // Optionally show a toast to the user
                 }
             }
             byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
@@ -442,7 +423,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Num Suggestions characteristic not found");
         }
 
-        // --- Queue Plant Type ---
         BluetoothGattCharacteristic plantTypeChar = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
         if (plantTypeChar != null) {
             int plantTypeIndex = plantTypeSpinner.getSelectedItemPosition();
@@ -452,7 +432,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Plant Type characteristic not found");
         }
 
-        // --- Queue Trigger Suggestion ---
         BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
         if (suggestChar != null) {
             byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
@@ -502,7 +481,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchLlmResponse() {
-        suggestionBuilder.setLength(0); // Clear previous suggestion
+        suggestionBuilder.setLength(0);
         llmOffset = 1;
         requestLlmChunk();
     }
@@ -555,10 +534,8 @@ public class MainActivity extends AppCompatActivity {
         if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
             UUID characteristicUuid = characteristicsToSubscribe.get(currentSubscriptionIndex);
             setCharacteristicNotificationInternal(gatt, characteristicUuid, true);
-            // The actual next subscription will be triggered by onDescriptorWrite
         } else {
             Log.d(TAG, "All characteristics subscribed.");
-            // All subscriptions are done
         }
     }
 
@@ -566,7 +543,6 @@ public class MainActivity extends AppCompatActivity {
         BluetoothGattService service = gatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) {
             Log.e(TAG, "Service not found for " + characteristicUuid);
-            // Potentially move to the next one or handle error
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
@@ -574,17 +550,14 @@ public class MainActivity extends AppCompatActivity {
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
             Log.e(TAG, "Characteristic not found: " + characteristicUuid);
-            // Potentially move to the next one or handle error
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
 
-        // This call is local to the Android device
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            // Handle permission missing - crucial for Android 12+
             Log.e(TAG, "BLUETOOTH_CONNECT permission missing for setCharacteristicNotificationInternal");
-            currentSubscriptionIndex++; // Or stop the process
+            currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
@@ -595,24 +568,16 @@ public class MainActivity extends AppCompatActivity {
             subscribeNextCharacteristic(gatt);
             return;
         }
-        // Now write to the CCCD descriptor to enable notifications on the peripheral
         UUID cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(cccdUuid);
         if (descriptor != null) {
             byte[] value = enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
             descriptor.setValue(value);
-            // The onDescriptorWrite callback will trigger the next subscription
             if (!gatt.writeDescriptor(descriptor)) {
                 Log.e(TAG, "writeDescriptor failed for " + characteristicUuid);
-                // Even if writeDescriptor returns false, wait for onDescriptorWrite, it might still come with an error status
-                // Or, decide to move to the next one if it consistently fails to even queue
-                // For simplicity here, we assume onDescriptorWrite will be called.
-                // A more robust handler might retry or skip.
             }
         } else {
             Log.w(TAG, "CCCD descriptor not found for " + characteristicUuid);
-            // This characteristic might not support notifications, or something is wrong
-            // Move to the next one
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
         }
@@ -623,7 +588,6 @@ public class MainActivity extends AppCompatActivity {
         byte[] data = characteristic.getValue();
         if (data == null || data.length < 4) return;
         final float value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
-
 
         runOnUiThread(() -> {
             if (uuid.equals(GattAttributes.UUID_N)) {
@@ -644,7 +608,6 @@ public class MainActivity extends AppCompatActivity {
                 addHistory(lightHistory, value);
             }
 
-            // Update the live plot
             HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
             historyData.put("N", nHistory);
             historyData.put("P", pHistory);

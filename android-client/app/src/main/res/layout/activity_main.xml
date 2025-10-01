@@ -41,60 +41,60 @@
                     android:textStyle="bold" />
             </RelativeLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Suggestion Options"
-            android:textStyle="bold"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Suggestion Options"
+                android:textStyle="bold"/>
 
-        <EditText
-            android:id="@+id/num_suggestions_edit_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Number of Suggestions (e.g., 3)"
-            android:inputType="number" />
+            <EditText
+                android:id="@+id/num_suggestions_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Number of Suggestions (e.g., 3)"
+                android:inputType="number" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Plant Type"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Plant Type"/>
 
-        <Spinner
-            android:id="@+id/plant_type_spinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp" />
+            <Spinner
+                android:id="@+id/plant_type_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
 
-        <Button
-            android:id="@+id/get_suggestion_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Get Suggestion" />
+            <Button
+                android:id="@+id/get_suggestion_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Get Suggestion" />
 
-        <TextView
-            android:id="@+id/suggestion_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Suggestion: --"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/suggestion_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Suggestion: --"
+                android:textSize="16sp" />
 
-        <Button
-            android:id="@+id/take_picture_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Take Picture" />
+            <Button
+                android:id="@+id/take_picture_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Take Picture" />
 
-        <com.example.demeterclient.PlotView
-            android:id="@+id/live_plot_view"
-            android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:layout_marginTop="16dp" />
+            <com.example.demeterclient.PlotView
+                android:id="@+id/live_plot_view"
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:layout_marginTop="16dp" />
 
         </LinearLayout>
     </ScrollView>

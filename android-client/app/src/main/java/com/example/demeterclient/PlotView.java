@@ -159,7 +159,8 @@ public class PlotView extends View {
             // Draw the value label
             legendPaint.setColor(seriesColors.getOrDefault(entry.getKey(), Color.BLACK));
             float lastValue = points.get(points.size() - 1);
-            canvas.drawText(String.format("%.1f", lastValue), lastX + 15, lastY + 8, legendPaint);
+            String label = entry.getKey() + ": " + String.format("%.1f", lastValue);
+            canvas.drawText(label, lastX + 15, lastY + 8, legendPaint);
         }
 
         // --- Draw Legend ---
