@@ -172,6 +172,28 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        // In your gattCallback:
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+            super.onDescriptorWrite(gatt, descriptor, status);
+            UUID characteristicUuid = descriptor.getCharacteristic().getUuid(); // Get which characteristic this was for
+
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "Descriptor write successful for: " + characteristicUuid);
+            } else {
+                Log.e(TAG, "Descriptor write failed for: " + characteristicUuid + " with status: " + status);
+            }
+
+            // Check if this descriptor write was part of our sequential subscription
+            if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
+                // Check if the UUID matches the one we were trying to subscribe to,
+                // though simply incrementing and trying next is often sufficient
+                // if (characteristicUuid.equals(characteristicsToSubscribe.get(currentSubscriptionIndex))) {
+                currentSubscriptionIndex++;
+                subscribeNextCharacteristic(gatt);
+                // }
+            }
+        }
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS && characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
@@ -234,6 +256,21 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         bluetoothGatt.writeCharacteristic(plantTypeChar);
+        BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
+        if (suggestChar == null) return;
+
+        value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
+        suggestChar.setValue(value);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        try{
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        bluetoothGatt.writeCharacteristic(suggestChar);
+
         runOnUiThread(() -> suggestionTextView.setText("Suggestion: Requesting..."));
     }
 
@@ -269,41 +306,88 @@ public class MainActivity extends AppCompatActivity {
         }
         bluetoothGatt.readCharacteristic(llmChar);
     }
-
+    private List<UUID> characteristicsToSubscribe;
+    private int currentSubscriptionIndex = 0;
     private void subscribeToCharacteristics(BluetoothGatt gatt) {
-        setCharacteristicNotification(gatt, GattAttributes.UUID_N, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_P, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_K, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_PH, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_HUMID, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_SUN, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_MOISTURE, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_LIGHT, true);
-        setCharacteristicNotification(gatt, GattAttributes.UUID_LLM_STATUS, true);
+        characteristicsToSubscribe = List.of(
+                GattAttributes.UUID_K,
+                GattAttributes.UUID_P,
+                GattAttributes.UUID_N,
+                GattAttributes.UUID_PH,
+                GattAttributes.UUID_HUMID,
+                GattAttributes.UUID_SUN,
+                GattAttributes.UUID_MOISTURE,
+                GattAttributes.UUID_LIGHT,
+                GattAttributes.UUID_LLM_STATUS
+        );
+        currentSubscriptionIndex = 0;
+        subscribeNextCharacteristic(gatt);
     }
 
-    private void setCharacteristicNotification(BluetoothGatt gatt, UUID characteristicUuid, boolean enabled) {
+    private void subscribeNextCharacteristic(BluetoothGatt gatt) {
+        if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
+            UUID characteristicUuid = characteristicsToSubscribe.get(currentSubscriptionIndex);
+            setCharacteristicNotificationInternal(gatt, characteristicUuid, true);
+            // The actual next subscription will be triggered by onDescriptorWrite
+        } else {
+            Log.d(TAG, "All characteristics subscribed.");
+            // All subscriptions are done
+        }
+    }
+
+    private void setCharacteristicNotificationInternal(BluetoothGatt gatt, UUID characteristicUuid, boolean enabled) {
         BluetoothGattService service = gatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) {
             Log.e(TAG, "Service not found for " + characteristicUuid);
+            // Potentially move to the next one or handle error
+            currentSubscriptionIndex++;
+            subscribeNextCharacteristic(gatt);
             return;
         }
-        android.bluetooth.BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
             Log.e(TAG, "Characteristic not found: " + characteristicUuid);
+            // Potentially move to the next one or handle error
+            currentSubscriptionIndex++;
+            subscribeNextCharacteristic(gatt);
             return;
         }
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-        gatt.setCharacteristicNotification(characteristic, enabled);
 
-        // This is for BLE notifications to work.
+        // This call is local to the Android device
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            // Handle permission missing - crucial for Android 12+
+            Log.e(TAG, "BLUETOOTH_CONNECT permission missing for setCharacteristicNotificationInternal");
+            currentSubscriptionIndex++; // Or stop the process
+            subscribeNextCharacteristic(gatt);
+            return;
+        }
+        boolean notificationSet = gatt.setCharacteristicNotification(characteristic, enabled);
+        if (!notificationSet) {
+            Log.e(TAG, "setCharacteristicNotification failed for " + characteristicUuid);
+            currentSubscriptionIndex++;
+            subscribeNextCharacteristic(gatt);
+            return;
+        }
+        // Now write to the CCCD descriptor to enable notifications on the peripheral
         UUID cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(cccdUuid);
         if (descriptor != null) {
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            gatt.writeDescriptor(descriptor);
+            byte[] value = enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
+            descriptor.setValue(value);
+            // The onDescriptorWrite callback will trigger the next subscription
+            if (!gatt.writeDescriptor(descriptor)) {
+                Log.e(TAG, "writeDescriptor failed for " + characteristicUuid);
+                // Even if writeDescriptor returns false, wait for onDescriptorWrite, it might still come with an error status
+                // Or, decide to move to the next one if it consistently fails to even queue
+                // For simplicity here, we assume onDescriptorWrite will be called.
+                // A more robust handler might retry or skip.
+            }
+        } else {
+            Log.w(TAG, "CCCD descriptor not found for " + characteristicUuid);
+            // This characteristic might not support notifications, or something is wrong
+            // Move to the next one
+            currentSubscriptionIndex++;
+            subscribeNextCharacteristic(gatt);
         }
     }
 
