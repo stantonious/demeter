@@ -17,6 +17,7 @@ public class PlotView extends View {
 
     private Map<String, ArrayList<Float>> dataSeries = new HashMap<>();
     private Map<String, Integer> seriesColors = new LinkedHashMap<>();
+    private Map<String, String> seriesLabels = new LinkedHashMap<>();
     private Paint linePaint;
     private Paint axisPaint;
     private Paint textPaint;
@@ -56,6 +57,16 @@ public class PlotView extends View {
         seriesColors.put("Sun", Color.YELLOW);
         seriesColors.put("Moisture", Color.DKGRAY);
         seriesColors.put("Light", Color.LTGRAY);
+
+        // Define descriptive labels for the legend
+        seriesLabels.put("N", "Nitrogen");
+        seriesLabels.put("P", "Phosphorus");
+        seriesLabels.put("K", "Potassium");
+        seriesLabels.put("pH", "pH");
+        seriesLabels.put("Humidity", "Humidity");
+        seriesLabels.put("Sun", "Sunlight");
+        seriesLabels.put("Moisture", "Moisture");
+        seriesLabels.put("Light", "Light");
     }
 
     public void setData(Map<String, ArrayList<Float>> data) {
@@ -156,10 +167,14 @@ public class PlotView extends View {
         float legendY = padding;
         int i = 0;
         for (Map.Entry<String, Integer> entry : seriesColors.entrySet()) {
-            legendPaint.setColor(entry.getValue());
+            String key = entry.getKey();
+            int color = entry.getValue();
+            String label = seriesLabels.getOrDefault(key, key);
+
+            legendPaint.setColor(color);
             canvas.drawRect(legendX, legendY + (i * 30), legendX + 20, legendY + 20 + (i * 30), legendPaint);
             legendPaint.setColor(Color.BLACK);
-            canvas.drawText(entry.getKey(), legendX + 30, legendY + 18 + (i * 30), legendPaint);
+            canvas.drawText(label, legendX + 30, legendY + 18 + (i * 30), legendPaint);
             i++;
         }
     }
