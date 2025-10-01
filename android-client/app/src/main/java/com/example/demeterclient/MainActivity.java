@@ -17,11 +17,8 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -31,19 +28,13 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -68,12 +59,17 @@ public class MainActivity extends AppCompatActivity {
     private TextView suggestionTextView;
     private EditText numSuggestionsEditText;
     private Spinner plantTypeSpinner;
-    private Button takePictureButton;
+    private Button viewPlotsButton;
 
-    private static final int REQUEST_IMAGE_CAPTURE = 2;
-    private static final int REQUEST_CAMERA_PERMISSION = 3;
-    private String currentPhotoPath;
-    private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
+    private static final int MAX_DATA_POINTS = 100;
+    private ArrayList<Float> nHistory = new ArrayList<>();
+    private ArrayList<Float> pHistory = new ArrayList<>();
+    private ArrayList<Float> kHistory = new ArrayList<>();
+    private ArrayList<Float> phHistory = new ArrayList<>();
+    private ArrayList<Float> humidityHistory = new ArrayList<>();
+    private ArrayList<Float> sunHistory = new ArrayList<>();
+    private ArrayList<Float> moistureHistory = new ArrayList<>();
+    private ArrayList<Float> lightHistory = new ArrayList<>();
 
     private enum BleConnectionStatus {
         DISCONNECTED,
@@ -92,9 +88,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (savedInstanceState != null) {
-            currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
-        }
         setContentView(R.layout.activity_main);
 
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
@@ -112,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
         suggestionTextView = findViewById(R.id.suggestion_text_view);
         numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
-        takePictureButton = findViewById(R.id.take_picture_button);
+        viewPlotsButton = findViewById(R.id.view_plots_button);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -124,12 +117,19 @@ public class MainActivity extends AppCompatActivity {
             requestSuggestion();
         });
 
-        takePictureButton.setOnClickListener(v -> {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
-            } else {
-                dispatchTakePictureIntent();
-            }
+        viewPlotsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, PlotActivity.class);
+            HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
+            historyData.put("N", nHistory);
+            historyData.put("P", pHistory);
+            historyData.put("K", kHistory);
+            historyData.put("pH", phHistory);
+            historyData.put("Humidity", humidityHistory);
+            historyData.put("Sun", sunHistory);
+            historyData.put("Moisture", moistureHistory);
+            historyData.put("Light", lightHistory);
+            intent.putExtra("history_data", historyData);
+            startActivity(intent);
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -179,110 +179,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 statusTextView.setText("Permissions not granted.");
             }
-        } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                dispatchTakePictureIntent();
-            } else {
-                statusTextView.setText("Camera permission denied.");
-            }
         }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            if (currentPhotoPath != null) {
-                sendImageInChunks(currentPhotoPath);
-                Intent intent = new Intent(this, PreviewActivity.class);
-                intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
-                startActivity(intent);
-            }
-        }
-    }
-
-    private void sendImageInChunks(String photoPath) {
-        if (bluetoothGatt == null) {
-            Log.e(TAG, "BluetoothGatt not initialized");
-            return;
-        }
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) {
-            Log.e(TAG, "Demeter service not found");
-            return;
-        }
-        BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
-        if (imageChar == null) {
-            Log.e(TAG, "Image characteristic not found");
-            return;
-        }
-
-        // 1. Load and resize bitmap
-        Bitmap originalBitmap = BitmapFactory.decodeFile(photoPath);
-        if (originalBitmap == null) {
-            Log.e(TAG, "Failed to decode image file");
-            return;
-        }
-        Bitmap resizedBitmap = Bitmap.createScaledBitmap(originalBitmap, 128, 128, true);
-
-        // 2. Convert to byte array
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream); // Compress as JPEG
-        byte[] imageBytes = stream.toByteArray();
-        Log.d(TAG, "Resized image to " + imageBytes.length + " bytes.");
-
-        // 3. Signal start of transfer
-        writeCharacteristicToQueue(imageChar, new byte[0]);
-
-        // 4. Send in chunks
-        int chunkSize = 500;
-        for (int i = 0; i < imageBytes.length; i += chunkSize) {
-            int end = Math.min(i + chunkSize, imageBytes.length);
-            byte[] chunk = new byte[end - i];
-            System.arraycopy(imageBytes, i, chunk, 0, chunk.length);
-            writeCharacteristicToQueue(imageChar, chunk);
-        }
-        Log.d(TAG, "Queued all image chunks for sending.");
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        if (currentPhotoPath != null) {
-            outState.putString(KEY_PHOTO_PATH, currentPhotoPath);
-        }
-    }
-
-    private void dispatchTakePictureIntent() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-            } catch (IOException ex) {
-                Log.e(TAG, "Error creating image file", ex);
-            }
-            if (photoFile != null) {
-                Uri photoURI = FileProvider.getUriForFile(this,
-                        "com.example.demeterclient.fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            }
-        }
-    }
-
-    private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(
-                imageFileName,
-                ".jpg",
-                storageDir
-        );
-        currentPhotoPath = image.getAbsolutePath();
-        return image;
     }
 
     private void scanLeDevice(final boolean enable) {
@@ -671,22 +568,37 @@ public class MainActivity extends AppCompatActivity {
         runOnUiThread(() -> {
             if (uuid.equals(GattAttributes.UUID_N)) {
                 nValue.setText(String.format("N: %.2f", value));
+                addHistory(nHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_P)) {
                 pValue.setText(String.format("P: %.2f", value));
+                addHistory(pHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_K)) {
                 kValue.setText(String.format("K: %.2f", value));
+                addHistory(kHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_PH)) {
                 phValue.setText(String.format("pH: %.2f", value));
+                addHistory(phHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_HUMID)) {
                 humidityValue.setText(String.format("Humidity: %.2f", value));
+                addHistory(humidityHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_SUN)) {
                 sunValue.setText(String.format("Sun: %.2f", value));
+                addHistory(sunHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_MOISTURE)) {
                 moistureValue.setText(String.format("Moisture: %.2f", value));
+                addHistory(moistureHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_LIGHT)) {
                 lightValue.setText(String.format("Light: %.2f", value));
+                addHistory(lightHistory, value);
             }
         });
+    }
+
+    private void addHistory(ArrayList<Float> history, float value) {
+        history.add(value);
+        if (history.size() > MAX_DATA_POINTS) {
+            history.remove(0);
+        }
     }
 
     private void updateLedIndicator(BleConnectionStatus status) {
