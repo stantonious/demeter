@@ -85,7 +85,7 @@ public class PlotView extends View {
         int width = getWidth();
         int height = getHeight();
         float padding = 60;
-        float legendWidth = 150;
+        float legendWidth = 220; // Increased width for longer labels
 
         // Draw title
         textPaint.setTextAlign(Paint.Align.CENTER);
