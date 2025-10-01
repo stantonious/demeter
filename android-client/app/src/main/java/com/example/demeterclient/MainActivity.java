@@ -15,9 +15,13 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -28,10 +32,17 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -51,11 +62,27 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout swipeRefreshLayout;
     private ImageView ledIndicator;
     private TextView statusTextView;
-    private TextView nValue, pValue, kValue, phValue, humidityValue, sunValue, moistureValue, lightValue;
     private Button getSuggestionButton;
     private TextView suggestionTextView;
     private EditText numSuggestionsEditText;
     private Spinner plantTypeSpinner;
+    private PlotView livePlotView;
+    private Button takePictureButton;
+
+    private static final int REQUEST_IMAGE_CAPTURE = 2;
+    private static final int REQUEST_CAMERA_PERMISSION = 3;
+    private String currentPhotoPath;
+    private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
+
+    private static final int MAX_DATA_POINTS = 100;
+    private ArrayList<Float> nHistory = new ArrayList<>();
+    private ArrayList<Float> pHistory = new ArrayList<>();
+    private ArrayList<Float> kHistory = new ArrayList<>();
+    private ArrayList<Float> phHistory = new ArrayList<>();
+    private ArrayList<Float> humidityHistory = new ArrayList<>();
+    private ArrayList<Float> sunHistory = new ArrayList<>();
+    private ArrayList<Float> moistureHistory = new ArrayList<>();
+    private ArrayList<Float> lightHistory = new ArrayList<>();
 
     private enum BleConnectionStatus {
         DISCONNECTED,
@@ -74,23 +101,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
+        }
         setContentView(R.layout.activity_main);
 
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
         ledIndicator = findViewById(R.id.led_indicator);
         statusTextView = findViewById(R.id.status_text_view);
-        nValue = findViewById(R.id.n_value);
-        pValue = findViewById(R.id.p_value);
-        kValue = findViewById(R.id.k_value);
-        phValue = findViewById(R.id.ph_value);
-        humidityValue = findViewById(R.id.humidity_value);
-        sunValue = findViewById(R.id.sun_value);
-        moistureValue = findViewById(R.id.moisture_value);
-        lightValue = findViewById(R.id.light_value);
         getSuggestionButton = findViewById(R.id.get_suggestion_button);
         suggestionTextView = findViewById(R.id.suggestion_text_view);
         numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
+        livePlotView = findViewById(R.id.live_plot_view);
+        takePictureButton = findViewById(R.id.take_picture_button);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -100,6 +124,14 @@ public class MainActivity extends AppCompatActivity {
 
         getSuggestionButton.setOnClickListener(v -> {
             requestSuggestion();
+        });
+
+        takePictureButton.setOnClickListener(v -> {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+            } else {
+                dispatchTakePictureIntent();
+            }
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -121,12 +153,10 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter = bluetoothManager.getAdapter();
 
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            // Inform the user that Bluetooth is not enabled
             statusTextView.setText("Bluetooth is not enabled");
             return;
         }
 
-        // Request permissions
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -149,12 +179,69 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 statusTextView.setText("Permissions not granted.");
             }
+        } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                dispatchTakePictureIntent();
+            } else {
+                statusTextView.setText("Camera permission denied.");
+            }
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+            if (currentPhotoPath != null) {
+                Intent intent = new Intent(this, PreviewActivity.class);
+                intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                startActivity(intent);
+            }
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (currentPhotoPath != null) {
+            outState.putString(KEY_PHOTO_PATH, currentPhotoPath);
+        }
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Log.e(TAG, "Error creating image file", ex);
+            }
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(this,
+                        "com.example.demeterclient.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(
+                imageFileName,
+                ".jpg",
+                storageDir
+        );
+        currentPhotoPath = image.getAbsolutePath();
+        return image;
     }
 
     private void scanLeDevice(final boolean enable) {
         if (enable) {
-            // Stops scanning after a pre-defined scan period.
             handler.postDelayed(() -> {
                 if (scanning) {
                     scanning = false;
@@ -168,7 +255,6 @@ public class MainActivity extends AppCompatActivity {
 
             scanning = true;
             ScanFilter filter = new ScanFilter.Builder()
-
               .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
                 .build();
             List<ScanFilter> filters = Collections.singletonList(filter);
@@ -240,26 +326,18 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // In your gattCallback:
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
-            UUID characteristicUuid = descriptor.getCharacteristic().getUuid(); // Get which characteristic this was for
-
+            UUID characteristicUuid = descriptor.getCharacteristic().getUuid();
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "Descriptor write successful for: " + characteristicUuid);
             } else {
                 Log.e(TAG, "Descriptor write failed for: " + characteristicUuid + " with status: " + status);
             }
-
-            // Check if this descriptor write was part of our sequential subscription
             if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
-                // Check if the UUID matches the one we were trying to subscribe to,
-                // though simply incrementing and trying next is often sufficient
-                // if (characteristicUuid.equals(characteristicsToSubscribe.get(currentSubscriptionIndex))) {
                 currentSubscriptionIndex++;
                 subscribeNextCharacteristic(gatt);
-                // }
             }
         }
         @Override
@@ -267,14 +345,12 @@ public class MainActivity extends AppCompatActivity {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
-                    // This is a special case for the LLM chunk reading logic
                     readLlmChunk();
                 }
             } else {
                 Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
-                writeQueue.clear(); // Clear the queue on failure
+                writeQueue.clear();
             }
-            // Process next write in the queue
             isWriting = false;
             processWriteQueue();
         }
@@ -286,10 +362,8 @@ public class MainActivity extends AppCompatActivity {
                 if (data != null && data.length > 0) {
                     suggestionBuilder.append(new String(data));
                     if (data.length < 225) {
-                        // End of message
                         runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
                     } else {
-                        // More data to read
                         llmOffset += data.length;
                         requestLlmChunk();
                     }
@@ -309,9 +383,9 @@ public class MainActivity extends AppCompatActivity {
             if (characteristic.getUuid().equals(GattAttributes.UUID_LLM_STATUS)) {
                 int llmStatus = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
                 runOnUiThread(() -> {
-                    if (llmStatus == 1) { // Generating
+                    if (llmStatus == 1) {
                         suggestionTextView.setText("Suggestion: Generating...");
-                    } else if (llmStatus == 2) { // Ready
+                    } else if (llmStatus == 2) {
                         fetchLlmResponse();
                     }
                 });
@@ -329,21 +403,18 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Clear any pending writes
         writeQueue.clear();
         isWriting = false;
 
-        // --- Queue Number of Suggestions ---
         BluetoothGattCharacteristic numSuggestionsChar = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
         if (numSuggestionsChar != null) {
             String numSuggestionsStr = numSuggestionsEditText.getText().toString();
-            int numSuggestions = 1; // Default value
+            int numSuggestions = 1;
             if (!numSuggestionsStr.isEmpty()) {
                 try {
                     numSuggestions = Integer.parseInt(numSuggestionsStr);
                 } catch (NumberFormatException e) {
                     Log.e(TAG, "Invalid number format for suggestions", e);
-                    // Optionally show a toast to the user
                 }
             }
             byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
@@ -352,7 +423,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Num Suggestions characteristic not found");
         }
 
-        // --- Queue Plant Type ---
         BluetoothGattCharacteristic plantTypeChar = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
         if (plantTypeChar != null) {
             int plantTypeIndex = plantTypeSpinner.getSelectedItemPosition();
@@ -362,7 +432,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Plant Type characteristic not found");
         }
 
-        // --- Queue Trigger Suggestion ---
         BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
         if (suggestChar != null) {
             byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
@@ -412,7 +481,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchLlmResponse() {
-        suggestionBuilder.setLength(0); // Clear previous suggestion
+        suggestionBuilder.setLength(0);
         llmOffset = 1;
         requestLlmChunk();
     }
@@ -465,10 +534,8 @@ public class MainActivity extends AppCompatActivity {
         if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
             UUID characteristicUuid = characteristicsToSubscribe.get(currentSubscriptionIndex);
             setCharacteristicNotificationInternal(gatt, characteristicUuid, true);
-            // The actual next subscription will be triggered by onDescriptorWrite
         } else {
             Log.d(TAG, "All characteristics subscribed.");
-            // All subscriptions are done
         }
     }
 
@@ -476,7 +543,6 @@ public class MainActivity extends AppCompatActivity {
         BluetoothGattService service = gatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) {
             Log.e(TAG, "Service not found for " + characteristicUuid);
-            // Potentially move to the next one or handle error
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
@@ -484,17 +550,14 @@ public class MainActivity extends AppCompatActivity {
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
             Log.e(TAG, "Characteristic not found: " + characteristicUuid);
-            // Potentially move to the next one or handle error
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
 
-        // This call is local to the Android device
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            // Handle permission missing - crucial for Android 12+
             Log.e(TAG, "BLUETOOTH_CONNECT permission missing for setCharacteristicNotificationInternal");
-            currentSubscriptionIndex++; // Or stop the process
+            currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
@@ -505,24 +568,16 @@ public class MainActivity extends AppCompatActivity {
             subscribeNextCharacteristic(gatt);
             return;
         }
-        // Now write to the CCCD descriptor to enable notifications on the peripheral
         UUID cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(cccdUuid);
         if (descriptor != null) {
             byte[] value = enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
             descriptor.setValue(value);
-            // The onDescriptorWrite callback will trigger the next subscription
             if (!gatt.writeDescriptor(descriptor)) {
                 Log.e(TAG, "writeDescriptor failed for " + characteristicUuid);
-                // Even if writeDescriptor returns false, wait for onDescriptorWrite, it might still come with an error status
-                // Or, decide to move to the next one if it consistently fails to even queue
-                // For simplicity here, we assume onDescriptorWrite will be called.
-                // A more robust handler might retry or skip.
             }
         } else {
             Log.w(TAG, "CCCD descriptor not found for " + characteristicUuid);
-            // This characteristic might not support notifications, or something is wrong
-            // Move to the next one
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
         }
@@ -534,26 +589,43 @@ public class MainActivity extends AppCompatActivity {
         if (data == null || data.length < 4) return;
         final float value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
 
-
         runOnUiThread(() -> {
             if (uuid.equals(GattAttributes.UUID_N)) {
-                nValue.setText(String.format("N: %.2f", value));
+                addHistory(nHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_P)) {
-                pValue.setText(String.format("P: %.2f", value));
+                addHistory(pHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_K)) {
-                kValue.setText(String.format("K: %.2f", value));
+                addHistory(kHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_PH)) {
-                phValue.setText(String.format("pH: %.2f", value));
+                addHistory(phHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_HUMID)) {
-                humidityValue.setText(String.format("Humidity: %.2f", value));
+                addHistory(humidityHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_SUN)) {
-                sunValue.setText(String.format("Sun: %.2f", value));
+                addHistory(sunHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_MOISTURE)) {
-                moistureValue.setText(String.format("Moisture: %.2f", value));
+                addHistory(moistureHistory, value);
             } else if (uuid.equals(GattAttributes.UUID_LIGHT)) {
-                lightValue.setText(String.format("Light: %.2f", value));
+                addHistory(lightHistory, value);
             }
+
+            HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
+            historyData.put("N", nHistory);
+            historyData.put("P", pHistory);
+            historyData.put("K", kHistory);
+            historyData.put("pH", phHistory);
+            historyData.put("Humidity", humidityHistory);
+            historyData.put("Sun", sunHistory);
+            historyData.put("Moisture", moistureHistory);
+            historyData.put("Light", lightHistory);
+            livePlotView.setData(historyData);
         });
+    }
+
+    private void addHistory(ArrayList<Float> history, float value) {
+        history.add(value);
+        if (history.size() > MAX_DATA_POINTS) {
+            history.remove(0);
+        }
     }
 
     private void updateLedIndicator(BleConnectionStatus status) {

@@ -41,103 +41,60 @@
                     android:textStyle="bold" />
             </RelativeLayout>
 
-        <TextView
-            android:id="@+id/n_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="N: --"
-            android:textSize="16sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Suggestion Options"
+                android:textStyle="bold"/>
 
-        <TextView
-            android:id="@+id/p_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="P: --"
-            android:textSize="16sp" />
+            <EditText
+                android:id="@+id/num_suggestions_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="Number of Suggestions (e.g., 3)"
+                android:inputType="number" />
 
-        <TextView
-            android:id="@+id/k_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="K: --"
-            android:textSize="16sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Plant Type"/>
 
-        <TextView
-            android:id="@+id/ph_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="pH: --"
-            android:textSize="16sp" />
+            <Spinner
+                android:id="@+id/plant_type_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp" />
 
-        <TextView
-            android:id="@+id/humidity_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Humidity: --"
-            android:textSize="16sp" />
+            <Button
+                android:id="@+id/get_suggestion_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Get Suggestion" />
 
-        <TextView
-            android:id="@+id/sun_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Sun: --"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/suggestion_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Suggestion: --"
+                android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/moisture_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Moisture: --"
-            android:textSize="16sp" />
+            <Button
+                android:id="@+id/take_picture_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Take Picture" />
 
-        <TextView
-            android:id="@+id/light_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Light: --"
-            android:textSize="16sp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Suggestion Options"
-            android:textStyle="bold"/>
-
-        <EditText
-            android:id="@+id/num_suggestions_edit_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="Number of Suggestions (e.g., 3)"
-            android:inputType="number" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Plant Type"/>
-
-        <Spinner
-            android:id="@+id/plant_type_spinner"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp" />
-
-        <Button
-            android:id="@+id/get_suggestion_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Get Suggestion" />
-
-        <TextView
-            android:id="@+id/suggestion_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Suggestion: --"
-            android:textSize="16sp" />
+            <com.example.demeterclient.PlotView
+                android:id="@+id/live_plot_view"
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:layout_marginTop="16dp" />
 
         </LinearLayout>
     </ScrollView>
