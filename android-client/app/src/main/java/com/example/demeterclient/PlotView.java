@@ -9,14 +9,18 @@ import android.util.AttributeSet;
 import android.view.View;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public class PlotView extends View {
 
-    private ArrayList<Float> dataPoints = new ArrayList<>();
-    private String title = "";
+    private Map<String, ArrayList<Float>> dataSeries = new HashMap<>();
+    private Map<String, Integer> seriesColors = new LinkedHashMap<>();
     private Paint linePaint;
     private Paint axisPaint;
     private Paint textPaint;
+    private Paint legendPaint;
     private Path linePath;
 
     public PlotView(Context context, AttributeSet attrs) {
@@ -26,7 +30,6 @@ public class PlotView extends View {
 
     private void init() {
         linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        linePaint.setColor(Color.parseColor("#FF6200EE")); // A nice purple
         linePaint.setStyle(Paint.Style.STROKE);
         linePaint.setStrokeWidth(5);
 
@@ -37,13 +40,26 @@ public class PlotView extends View {
         textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         textPaint.setColor(Color.BLACK);
         textPaint.setTextSize(30);
+        textPaint.setTextAlign(Paint.Align.RIGHT);
+
+        legendPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        legendPaint.setTextSize(24);
 
         linePath = new Path();
+
+        // Define colors for each series
+        seriesColors.put("N", Color.RED);
+        seriesColors.put("P", Color.GREEN);
+        seriesColors.put("K", Color.BLUE);
+        seriesColors.put("pH", Color.CYAN);
+        seriesColors.put("Humidity", Color.MAGENTA);
+        seriesColors.put("Sun", Color.YELLOW);
+        seriesColors.put("Moisture", Color.DKGRAY);
+        seriesColors.put("Light", Color.LTGRAY);
     }
 
-    public void setData(ArrayList<Float> data, String title) {
-        this.dataPoints = new ArrayList<>(data); // Make a copy
-        this.title = title;
+    public void setData(Map<String, ArrayList<Float>> data) {
+        this.dataSeries = data;
         invalidate(); // Request a redraw
     }
 
@@ -51,52 +67,86 @@ public class PlotView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        if (dataPoints == null || dataPoints.isEmpty()) {
+        if (dataSeries == null || dataSeries.isEmpty()) {
             return;
         }
 
         int width = getWidth();
         int height = getHeight();
-        float padding = 50;
+        float padding = 60;
+        float legendWidth = 150;
 
         // Draw title
-        canvas.drawText(title, padding, padding, textPaint);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText("Live Sensor Data", width / 2f, 40, textPaint);
+        textPaint.setTextAlign(Paint.Align.RIGHT);
 
-        // Draw axes
+
+        // --- Find Global Min/Max ---
+        float globalMin = Float.MAX_VALUE;
+        float globalMax = Float.MIN_VALUE;
+        int maxDataPoints = 0;
+
+        for (ArrayList<Float> series : dataSeries.values()) {
+            if (series == null || series.isEmpty()) continue;
+            globalMin = Math.min(globalMin, Collections.min(series));
+            globalMax = Math.max(globalMax, Collections.max(series));
+            maxDataPoints = Math.max(maxDataPoints, series.size());
+        }
+
+        if (globalMin == Float.MAX_VALUE || maxDataPoints == 0) return; // No data to plot
+
+        float range = globalMax - globalMin;
+        if (range == 0) range = 1;
+
+        // --- Draw Axes ---
         canvas.drawLine(padding, padding, padding, height - padding, axisPaint); // Y-axis
-        canvas.drawLine(padding, height - padding, width - padding, height - padding, axisPaint); // X-axis
+        canvas.drawLine(padding, height - padding, width - legendWidth, height - padding, axisPaint); // X-axis
 
-        // Find data range
-        float minVal = Collections.min(dataPoints);
-        float maxVal = Collections.max(dataPoints);
-        float range = maxVal - minVal;
-        if (range == 0) range = 1; // Avoid division by zero
+        // Draw Y-axis labels
+        canvas.drawText(String.format("%.1f", globalMax), padding - 10, padding + 10, textPaint);
+        canvas.drawText(String.format("%.1f", globalMin), padding - 10, height - padding, textPaint);
 
-        // Draw axis labels
-        canvas.drawText(String.format("%.1f", maxVal), 5, padding + 10, textPaint);
-        canvas.drawText(String.format("%.1f", minVal), 5, height - padding, textPaint);
-
-        // Prepare path
-        linePath.reset();
+        // --- Draw Data Lines ---
         float plotHeight = height - (2 * padding);
-        float plotWidth = width - (2 * padding);
+        float plotWidth = width - padding - legendWidth;
 
-        if (dataPoints.size() > 1) {
-            for (int i = 0; i < dataPoints.size(); i++) {
-                float x = padding + (i * (plotWidth / (dataPoints.size() - 1)));
-                float y = (height - padding) - ((dataPoints.get(i) - minVal) / range * plotHeight);
+        for (Map.Entry<String, ArrayList<Float>> entry : dataSeries.entrySet()) {
+            ArrayList<Float> points = entry.getValue();
+            if (points == null || points.isEmpty()) continue;
 
-                if (i == 0) {
-                    linePath.moveTo(x, y);
-                } else {
-                    linePath.lineTo(x, y);
+            linePaint.setColor(seriesColors.getOrDefault(entry.getKey(), Color.BLACK));
+            linePath.reset();
+
+            if (points.size() > 1) {
+                for (int i = 0; i < points.size(); i++) {
+                    float x = padding + (i * (plotWidth / (points.size() - 1)));
+                    float y = (height - padding) - ((points.get(i) - globalMin) / range * plotHeight);
+
+                    if (i == 0) {
+                        linePath.moveTo(x, y);
+                    } else {
+                        linePath.lineTo(x, y);
+                    }
                 }
+                canvas.drawPath(linePath, linePaint);
+            } else { // Single point
+                float x = padding + (plotWidth / 2);
+                float y = (height - padding) - ((points.get(0) - globalMin) / range * plotHeight);
+                canvas.drawCircle(x, y, 10, linePaint);
             }
-            canvas.drawPath(linePath, linePaint);
-        } else if (dataPoints.size() == 1) {
-            float x = padding + (plotWidth / 2);
-            float y = (height - padding) - ((dataPoints.get(0) - minVal) / range * plotHeight);
-            canvas.drawCircle(x, y, 10, linePaint);
+        }
+
+        // --- Draw Legend ---
+        float legendX = width - legendWidth + 20;
+        float legendY = padding;
+        int i = 0;
+        for (Map.Entry<String, Integer> entry : seriesColors.entrySet()) {
+            legendPaint.setColor(entry.getValue());
+            canvas.drawRect(legendX, legendY + (i * 30), legendX + 20, legendY + 20 + (i * 30), legendPaint);
+            legendPaint.setColor(Color.BLACK);
+            canvas.drawText(entry.getKey(), legendX + 30, legendY + 18 + (i * 30), legendPaint);
+            i++;
         }
     }
 }

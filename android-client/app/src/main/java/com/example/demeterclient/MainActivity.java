@@ -15,7 +15,6 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -59,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView suggestionTextView;
     private EditText numSuggestionsEditText;
     private Spinner plantTypeSpinner;
-    private Button viewPlotsButton;
+    private PlotView livePlotView;
 
     private static final int MAX_DATA_POINTS = 100;
     private ArrayList<Float> nHistory = new ArrayList<>();
@@ -105,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
         suggestionTextView = findViewById(R.id.suggestion_text_view);
         numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
-        viewPlotsButton = findViewById(R.id.view_plots_button);
+        livePlotView = findViewById(R.id.live_plot_view);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -115,21 +114,6 @@ public class MainActivity extends AppCompatActivity {
 
         getSuggestionButton.setOnClickListener(v -> {
             requestSuggestion();
-        });
-
-        viewPlotsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, PlotActivity.class);
-            HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
-            historyData.put("N", nHistory);
-            historyData.put("P", pHistory);
-            historyData.put("K", kHistory);
-            historyData.put("pH", phHistory);
-            historyData.put("Humidity", humidityHistory);
-            historyData.put("Sun", sunHistory);
-            historyData.put("Moisture", moistureHistory);
-            historyData.put("Light", lightHistory);
-            intent.putExtra("history_data", historyData);
-            startActivity(intent);
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -591,6 +575,18 @@ public class MainActivity extends AppCompatActivity {
                 lightValue.setText(String.format("Light: %.2f", value));
                 addHistory(lightHistory, value);
             }
+
+            // Update the live plot
+            HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
+            historyData.put("N", nHistory);
+            historyData.put("P", pHistory);
+            historyData.put("K", kHistory);
+            historyData.put("pH", phHistory);
+            historyData.put("Humidity", humidityHistory);
+            historyData.put("Sun", sunHistory);
+            historyData.put("Moisture", moistureHistory);
+            historyData.put("Light", lightHistory);
+            livePlotView.setData(historyData);
         });
     }
 
