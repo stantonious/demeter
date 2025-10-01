@@ -20,4 +20,5 @@ public class GattAttributes {
     public static final UUID UUID_PLANT_TYPE = UUID.fromString("12345678-1234-5678-1234-56789abcdefa");
     public static final UUID UUID_NUM_SUGGESTIONS = UUID.fromString("12345678-1234-5678-1234-56789abcdefe");
     public static final UUID UUID_LLM_SELECTION = UUID.fromString("12345678-1234-5678-1234-56789abcdefd");
+    public static final UUID UUID_IMAGE = UUID.fromString("12345678-1234-5678-1234-56789abcdee0");
 }

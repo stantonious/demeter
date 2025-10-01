@@ -31,9 +31,12 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -189,12 +192,57 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            Intent intent = new Intent(this, PreviewActivity.class);
             if (currentPhotoPath != null) {
+                sendImageInChunks(currentPhotoPath);
+                Intent intent = new Intent(this, PreviewActivity.class);
                 intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
                 startActivity(intent);
             }
         }
+    }
+
+    private void sendImageInChunks(String photoPath) {
+        if (bluetoothGatt == null) {
+            Log.e(TAG, "BluetoothGatt not initialized");
+            return;
+        }
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found");
+            return;
+        }
+        BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
+        if (imageChar == null) {
+            Log.e(TAG, "Image characteristic not found");
+            return;
+        }
+
+        // 1. Load and resize bitmap
+        Bitmap originalBitmap = BitmapFactory.decodeFile(photoPath);
+        if (originalBitmap == null) {
+            Log.e(TAG, "Failed to decode image file");
+            return;
+        }
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(originalBitmap, 128, 128, true);
+
+        // 2. Convert to byte array
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream); // Compress as JPEG
+        byte[] imageBytes = stream.toByteArray();
+        Log.d(TAG, "Resized image to " + imageBytes.length + " bytes.");
+
+        // 3. Signal start of transfer
+        writeCharacteristicToQueue(imageChar, new byte[0]);
+
+        // 4. Send in chunks
+        int chunkSize = 500;
+        for (int i = 0; i < imageBytes.length; i += chunkSize) {
+            int end = Math.min(i + chunkSize, imageBytes.length);
+            byte[] chunk = new byte[end - i];
+            System.arraycopy(imageBytes, i, chunk, 0, chunk.length);
+            writeCharacteristicToQueue(imageChar, chunk);
+        }
+        Log.d(TAG, "Queued all image chunks for sending.");
     }
 
     @Override

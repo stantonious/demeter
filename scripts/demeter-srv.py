@@ -826,6 +826,48 @@ class NumSuggestionsChar(dbus.service.Object):
                 f"Received invalid byte array length for num suggestions: {len(value)}")
 
 
+g_image_data = bytearray()
+
+class ImageChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        # This characteristic is write-only.
+        return []
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_image_data
+        # The client will send an empty value to signal the start of a transfer.
+        if not value:
+            print("Received image transmission start signal. Clearing buffer.")
+            g_image_data.clear()
+        else:
+            g_image_data.extend(value)
+            print(f"Received image chunk of size: {len(value)}. Total size: {len(g_image_data)}")
+
+
 class IntWritableChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -1248,6 +1290,10 @@ def main():
     num_suggestions_char = NumSuggestionsChar(bus, 14,
                                               "12345678-1234-5678-1234-56789abcdefe", ["read", "write"], service)
     service.characteristics.append(num_suggestions_char)
+
+    image_char = ImageChar(bus, 15,
+                           "12345678-1234-5678-1234-56789abcdee0", ["write"], service)
+    service.characteristics.append(image_char)
 
     ad = Advertisement(bus, 0,SERVICE_UUID)
 
