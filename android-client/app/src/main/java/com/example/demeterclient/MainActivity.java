@@ -20,6 +20,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
@@ -787,7 +788,8 @@ public class MainActivity extends AppCompatActivity {
                 final int totalSize = imageData.length;
                 Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
-                int chunkSize = 512;
+
+                int chunkSize = 256;
                 for (int i = 0; i < totalSize; i += chunkSize) {
                     int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
