@@ -1371,14 +1371,12 @@ class Advertisement(dbus.service.Object):
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
-        return {
-            ADVERTISEMENT_INTERFACE: {
-                'Type': dbus.String('peripheral'),
-                'ServiceUUIDs': dbus.Array([self.service_uuid], signature='s'),
-                'LocalName': dbus.String('demeter'),
-                'IncludeTxPower': dbus.Boolean(True),
-            }
-        }
+        properties = {}
+        properties['Type'] = dbus.String('peripheral')
+        properties['ServiceUUIDs'] = dbus.Array([self.service_uuid], signature='s')
+        properties['LocalName'] = dbus.String('demeter')
+        properties['IncludeTxPower'] = dbus.Boolean(True)
+        return {ADVERTISEMENT_INTERFACE: properties}
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
@@ -1386,6 +1384,10 @@ class Advertisement(dbus.service.Object):
     @dbus.service.method('org.freedesktop.DBus.Properties',
                          in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
+        if interface != ADVERTISEMENT_INTERFACE:
+            raise dbus.exceptions.DBusException(
+                'org.freedesktop.DBus.Error.InvalidArgs',
+                'Invalid interface passed to GetAll')
         return self.get_properties()[interface]
 
     @dbus.service.method(ADVERTISEMENT_INTERFACE,
