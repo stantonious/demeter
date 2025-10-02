@@ -822,7 +822,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
 
-                int chunkSize = 512;
+                int chunkSize = 256;
                 for (int i = 0; i < totalSize; i += chunkSize) {
                     int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
