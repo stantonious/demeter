@@ -20,11 +20,13 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -76,6 +78,8 @@ public class MainActivity extends AppCompatActivity {
     private Button takePictureButton;
     private Button getAugmentedImageButton;
     private ImageView augmentedImageView;
+    private TextView augmentedImageProgressTextView;
+    private TextView uploadProgressTextView;
 
     private ByteArrayOutputStream augmentedImageStream = new ByteArrayOutputStream();
     private int imageReadOffset = 0;
@@ -129,6 +133,8 @@ public class MainActivity extends AppCompatActivity {
         takePictureButton = findViewById(R.id.take_picture_button);
         getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
         augmentedImageView = findViewById(R.id.augmented_image_view);
+        augmentedImageProgressTextView = findViewById(R.id.augmented_image_progress_text_view);
+        uploadProgressTextView = findViewById(R.id.upload_progress_text_view);
 
         takePictureButton.setEnabled(false);
         getAugmentedImageButton.setEnabled(false);
@@ -404,7 +410,7 @@ public class MainActivity extends AppCompatActivity {
                             runOnUiThread(() -> {
                                 suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString());
                                 takePictureButton.setEnabled(true);
-                                getAugmentedImageButton.setEnabled(true);
+                                getAugmentedImageButton.setEnabled(false);
                                 Toast.makeText(MainActivity.this, "Suggestion received. You can now take a picture.", Toast.LENGTH_LONG).show();
                             });
                         } else {
@@ -424,6 +430,7 @@ public class MainActivity extends AppCompatActivity {
                                 runOnUiThread(() -> {
                                     augmentedImageView.setImageBitmap(bitmap);
                                     augmentedImageView.setVisibility(View.VISIBLE);
+                                    augmentedImageProgressTextView.setVisibility(View.GONE);
                                     Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
                                 });
                             } else {
@@ -441,6 +448,7 @@ public class MainActivity extends AppCompatActivity {
                             runOnUiThread(() -> {
                                 augmentedImageView.setImageBitmap(bitmap);
                                 augmentedImageView.setVisibility(View.VISIBLE);
+                                augmentedImageProgressTextView.setVisibility(View.GONE);
                                 Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
                             });
                         }
@@ -465,6 +473,34 @@ public class MainActivity extends AppCompatActivity {
                         suggestionTextView.setText("Suggestion: Generating...");
                     } else if (llmStatus == 2) {
                         fetchLlmResponse();
+                    }
+                });
+            } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_STATUS)) {
+                int imageStatus = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                runOnUiThread(() -> {
+                    switch (imageStatus) {
+                        case 1: // Processing
+                            Toast.makeText(MainActivity.this, "Image received, server is processing...", Toast.LENGTH_SHORT).show();
+                            getAugmentedImageButton.setEnabled(false);
+                            break;
+                        case 2: // Success
+                            Toast.makeText(MainActivity.this, "Image processed. You can now get the augmented image.", Toast.LENGTH_LONG).show();
+                            getAugmentedImageButton.setEnabled(true);
+                            break;
+                        case 3: // Error
+                            Toast.makeText(MainActivity.this, "Server failed to process image.", Toast.LENGTH_LONG).show();
+                            getAugmentedImageButton.setEnabled(false);
+                            break;
+                    }
+                });
+            } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS)) {
+                int progress = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                runOnUiThread(() -> {
+                    if (progress > 0 && progress < 100) {
+                        augmentedImageProgressTextView.setVisibility(View.VISIBLE);
+                        augmentedImageProgressTextView.setText("Download Progress: " + progress + "%");
+                    } else {
+                        augmentedImageProgressTextView.setVisibility(View.GONE);
                     }
                 });
             } else {
@@ -602,7 +638,9 @@ public class MainActivity extends AppCompatActivity {
                 GattAttributes.UUID_SUN,
                 GattAttributes.UUID_MOISTURE,
                 GattAttributes.UUID_LIGHT,
-                GattAttributes.UUID_LLM_STATUS
+                GattAttributes.UUID_LLM_STATUS,
+                GattAttributes.UUID_IMAGE_STATUS,
+                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS
         );
         currentSubscriptionIndex = 0;
         subscribeNextCharacteristic(gatt);
@@ -727,7 +765,16 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show());
+        final BluetoothGattCharacteristic progressChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS);
+        if (progressChar == null) {
+            Log.e(TAG, "Image Upload Progress characteristic not found");
+        }
+
+        runOnUiThread(() -> {
+            Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show();
+            uploadProgressTextView.setVisibility(View.VISIBLE);
+            uploadProgressTextView.setText("Upload Progress: 0%");
+        });
 
         new Thread(() -> {
             try {
@@ -738,25 +785,40 @@ public class MainActivity extends AppCompatActivity {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
                 byte[] imageData = byteStream.toByteArray();
-                Log.d(TAG, "Downsampled image size: " + imageData.length + " bytes");
+                final int totalSize = imageData.length;
+                Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
-                int chunkSize = 512;
-                for (int i = 0; i < imageData.length; i += chunkSize) {
-                    int end = Math.min(imageData.length, i + chunkSize);
+
+                int chunkSize = 256;
+                for (int i = 0; i < totalSize; i += chunkSize) {
+                    int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
                     Log.d(TAG, "Queuing chunk " + (i / chunkSize + 1) + ", size: " + chunk.length);
                     writeCharacteristicToQueue(imageChar, chunk);
+
+                    final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
+                    runOnUiThread(() -> uploadProgressTextView.setText("Upload Progress: " + progress + "%"));
+                    if (progressChar != null) {
+                        byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
+                        writeCharacteristicToQueue(progressChar, progressValue);
+                    }
                 }
 
                 // Send End-Of-Transmission signal
                 Log.d(TAG, "Queuing EOT signal.");
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
 
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
+                    uploadProgressTextView.setVisibility(View.GONE);
+                });
 
             } catch (IOException e) {
                 Log.e(TAG, "Error reading image file", e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    uploadProgressTextView.setVisibility(View.GONE);
+                });
             }
         }).start();
     }
@@ -790,6 +852,8 @@ public class MainActivity extends AppCompatActivity {
         augmentedImageStream.reset();
         imageReadOffset = 0;
         augmentedImageView.setVisibility(View.GONE);
+        augmentedImageProgressTextView.setVisibility(View.VISIBLE);
+        augmentedImageProgressTextView.setText("Download Progress: 0%");
         Toast.makeText(this, "Generating and fetching augmented image... Please wait.", Toast.LENGTH_LONG).show();
         requestAugmentedImageChunk();
     }

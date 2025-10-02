@@ -23,4 +23,7 @@ public class GattAttributes {
     public static final UUID UUID_IMAGE = UUID.fromString("12345678-1234-5678-1234-56789abcdff0");
     public static final UUID UUID_IMAGE_REQUEST = UUID.fromString("12345678-1234-5678-1234-56789abcdff1");
     public static final UUID UUID_AUGMENTED_IMAGE = UUID.fromString("12345678-1234-5678-1234-56789abcdff2");
+    public static final UUID UUID_IMAGE_STATUS = UUID.fromString("12345678-1234-5678-1234-56789abcdff3");
+    public static final UUID UUID_AUGMENTED_IMAGE_PROGRESS = UUID.fromString("12345678-1234-5678-1234-56789abcdff4");
+    public static final UUID UUID_IMAGE_UPLOAD_PROGRESS = UUID.fromString("12345678-1234-5678-1234-56789abcdff5");
 }
