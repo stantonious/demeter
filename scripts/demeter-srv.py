@@ -1054,6 +1054,14 @@ soil_moister_level = "semi-dry"
 relative_humidity_level = "19"  # percent
 
 
+plant_type_mapping = [
+    "Vegetable", "Fruit", "Grass", "Ground Cover", "Flower", "Shrub",
+    "Perennials", "Annual", "Aquatic", "Succulents", "Bulbs", "Climbers",
+    "Vines", "Deciduous", "Biennials", "Houseplants", "Tropicals",
+    "Shade Tree", "Fruit Tree", "Evergreen Tree"
+]
+
+
 class PlantTypeChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -1090,15 +1098,11 @@ class PlantTypeChar(dbus.service.Object):
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set plant type to: {written_value}")
-            if written_value == 0:
-                g_plant_type = 'ground cover'
-            elif written_value == 1:
-                g_plant_type = 'vegetable'
-            elif written_value == 2:
-                g_plant_type = 'shrub'
-            elif written_value == 3:
-                g_plant_type = 'flowering'
-            print('setting plant type to ', g_plant_type)
+            if 0 <= written_value < len(plant_type_mapping):
+                g_plant_type = plant_type_mapping[written_value]
+                print('setting plant type to ', g_plant_type)
+            else:
+                print(f"Invalid plant type index: {written_value}")
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
