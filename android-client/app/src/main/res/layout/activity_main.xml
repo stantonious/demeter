@@ -103,6 +103,14 @@
                     android:text="Get Augmented Image" />
             </LinearLayout>
 
+            <TextView
+                android:id="@+id/augmented_image_progress_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Download Progress: 0%"
+                android:visibility="gone" />
+
             <ImageView
                 android:id="@+id/augmented_image_view"
                 android:layout_width="match_parent"

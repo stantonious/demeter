@@ -525,6 +525,106 @@ class KChar(dbus.service.Object):
         pass
 
 
+class ImageStatusChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.status = 0  # 0: idle, 1: receiving, 2: success, 3: error
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    def set_status(self, status):
+        if status != self.status:
+            self.status = status
+            if self.notifying:
+                print(f"Image status changed to: {self.status}")
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {
+                                       "Value": [dbus.Byte(self.status)]}, [])
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [dbus.Byte(self.status)]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+
+class AugmentedImageProgressChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.notifying = False
+        self.progress = 0  # 0-100
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    def set_progress(self, progress):
+        if progress != self.progress:
+            self.progress = progress
+            if self.notifying:
+                print(f"Augmented image progress: {self.progress}%")
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {
+                                       "Value": [dbus.Byte(self.progress)]}, [])
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [dbus.Byte(self.progress)]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
+
+
 class PChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -610,6 +710,7 @@ class ImageChar(dbus.service.Object):
         global g_augmented_image_data, g_suggested_plant_name, g_generated_plant_image_data
         chunk = bytes(value)
         if chunk == b'EOT':
+            self.service.image_status_char.set_status(1)
             try:
                 # Open the user's photo
                 user_image = Image.open(io.BytesIO(self.image_data))
@@ -630,9 +731,12 @@ class ImageChar(dbus.service.Object):
                 g_augmented_image_data = output_buffer.getvalue()
 
                 print("Image composition successful.")
+                self.service.image_status_char.set_status(2)
+                self.service.augmented_image_progress_char.set_progress(0)
 
             except Exception as e:
                 print(f"Error during image composition: {e}")
+                self.service.image_status_char.set_status(3)
             finally:
                 # Clear all temporary image data
                 self.image_data = bytearray()
@@ -701,6 +805,8 @@ class AugmentedImageChar(dbus.service.Object):
 
         if not g_augmented_image_data or offset >= len(g_augmented_image_data):
             print("Image transfer complete or no image available.")
+            if g_augmented_image_data:
+                self.service.augmented_image_progress_char.set_progress(100)
             return []
 
         chunk_size = 512
@@ -708,6 +814,9 @@ class AugmentedImageChar(dbus.service.Object):
         end_index = min(start_index + chunk_size, len(g_augmented_image_data))
 
         chunk = g_augmented_image_data[start_index:end_index]
+
+        progress = int(end_index * 100 / len(g_augmented_image_data))
+        self.service.augmented_image_progress_char.set_progress(progress)
 
         print(f"Reading augmented image chunk (offset: {offset}, size: {len(chunk)})")
         return [dbus.Byte(b) for b in chunk]
@@ -1260,6 +1369,8 @@ class Service(dbus.service.Object):
         self.primary = primary
         self.characteristics = []
         self.llm_status_char = None
+        self.image_status_char = None
+        self.augmented_image_progress_char = None
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -1494,9 +1605,19 @@ def main():
                                                 "12345678-1234-5678-1234-56789abcdff2", ["read"], service, image_request_char)
     service.characteristics.append(augmented_image_char)
 
+    image_status_char = ImageStatusChar(bus, 18,
+                                        "12345678-1234-5678-1234-56789abcdff3", ["read", "notify"], service)
+    service.characteristics.append(image_status_char)
+
+    augmented_image_progress_char = AugmentedImageProgressChar(bus, 19,
+                                                                "12345678-1234-5678-1234-56789abcdff4", ["read", "notify"], service)
+    service.characteristics.append(augmented_image_progress_char)
+
     ad = Advertisement(bus, 0,SERVICE_UUID)
 
     service.llm_status_char = llm_status_char
+    service.image_status_char = image_status_char
+    service.augmented_image_progress_char = augmented_image_progress_char
     app.add_service(service)
 
     adapter_path = "/org/bluez/hci0"
