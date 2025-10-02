@@ -19,6 +19,9 @@ import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_bh1750
 from config import OPENAI_API_KEY
+from PIL import Image, ImageDraw
+import io
+import httpx
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -58,6 +61,9 @@ g_humidity_val = 0.0
 g_moisture_val = 0.0
 g_light_val = 0.0
 g_num_suggestions = 0
+g_augmented_image_data = bytearray()
+g_suggested_plant_name = ""
+g_generated_plant_image_data = bytearray()
 
 
 class Characteristic(dbus.service.Object):
@@ -576,6 +582,158 @@ class PChar(dbus.service.Object):
         pass
 
 
+class ImageChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.image_data = bytearray()
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_augmented_image_data, g_suggested_plant_name, g_generated_plant_image_data
+        chunk = bytes(value)
+        if chunk == b'EOT':
+            try:
+                # Open the user's photo
+                user_image = Image.open(io.BytesIO(self.image_data))
+                draw = ImageDraw.Draw(user_image)
+                width, height = user_image.size
+
+                # Draw the yellow box first
+                box_size = min(width, height) // 2
+                left = (width - box_size) // 2
+                top = (height - box_size) // 2
+                right = left + box_size
+                bottom = top + box_size
+                draw.rectangle([left, top, right, bottom], outline="yellow", width=10)
+
+                # Generate and download the DALL-E image
+                dalle_thread = threading.Thread(target=generate_dalle_image, args=(g_suggested_plant_name,))
+                dalle_thread.start()
+                dalle_thread.join()
+
+                if not g_generated_plant_image_data:
+                    raise Exception("Failed to generate plant image.")
+
+                # Open the generated plant image
+                plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
+
+                # Resize plant image to fit inside the box with a small margin
+                margin = 20
+                plant_size = box_size - (2 * margin)
+                plant_image = plant_image.resize((plant_size, plant_size))
+
+                # Paste the plant image inside the box
+                paste_x = left + margin
+                paste_y = top + margin
+                user_image.paste(plant_image, (paste_x, paste_y), plant_image)
+
+                # Save the final image to the global variable
+                output_buffer = io.BytesIO()
+                user_image.save(output_buffer, format="JPEG")
+                g_augmented_image_data = output_buffer.getvalue()
+
+                print("Image composition successful.")
+
+            except Exception as e:
+                print(f"Error during image composition: {e}")
+            finally:
+                # Clear all temporary image data
+                self.image_data = bytearray()
+                g_generated_plant_image_data = bytearray()
+        else:
+            self.image_data.extend(chunk)
+            print(f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
+
+
+class IntOffsetChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set image request offset to: {self.value}")
+        else:
+            print(f"Received invalid byte array length for offset: {len(value)}")
+
+
+class AugmentedImageChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, request_char):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.request_char = request_char
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        offset = self.request_char.value
+
+        if not g_augmented_image_data or offset >= len(g_augmented_image_data):
+            print("Image transfer complete or no image available.")
+            return []
+
+        chunk_size = 512
+        start_index = offset
+        end_index = min(start_index + chunk_size, len(g_augmented_image_data))
+
+        chunk = g_augmented_image_data[start_index:end_index]
+
+        print(f"Reading augmented image chunk (offset: {offset}, size: {len(chunk)})")
+        return [dbus.Byte(b) for b in chunk]
+
+
 current_llm_response = ""
 is_generating = False
 g_llm_prompt = ""
@@ -632,7 +790,7 @@ def generate_ollama_response(prompt, llm_status_char):
 
 
 def generate_chatgpt_response(prompt, llm_status_char):
-    global current_llm_response, is_generating
+    global current_llm_response, is_generating, g_suggested_plant_name
     if is_generating:
         return
 
@@ -657,12 +815,52 @@ def generate_chatgpt_response(prompt, llm_status_char):
         response = completion.choices[0].message.content
         current_llm_response = response
         print('got openai res in background:', current_llm_response)
+
+        # Parse and store the first suggested plant name
+        lines = response.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith(('-', '*')):
+                plant_name = line.lstrip('*- ').strip()
+                g_suggested_plant_name = plant_name
+                print(f"Stored suggested plant name: {g_suggested_plant_name}")
+                break  # Found the first one
     except Exception as e:
         print(f"Error in openai generation: {e}")
         current_llm_response = "Error generating response."
     finally:
         is_generating = False
         llm_status_char.set_status(2)  # Ready
+
+
+def generate_dalle_image(plant_name):
+    global g_generated_plant_image_data
+    if not plant_name:
+        print("No plant name available to generate an image.")
+        return
+
+    try:
+        print(f"Generating DALL-E image for: {plant_name}")
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=f"A clear, high-quality image of a {plant_name} plant on a transparent background.",
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+        image_url = response.data[0].url
+        print(f"Generated image URL: {image_url}")
+
+        # Download the image
+        with httpx.stream("GET", image_url) as r:
+            image_data = bytearray()
+            for chunk in r.iter_bytes():
+                image_data.extend(chunk)
+            g_generated_plant_image_data = image_data
+            print("Successfully downloaded generated image.")
+
+    except Exception as e:
+        print(f"Error generating or downloading DALL-E image: {e}")
 
 
 def generate_llm_response(prompt, llm_status_char):
@@ -1248,6 +1446,18 @@ def main():
     num_suggestions_char = NumSuggestionsChar(bus, 14,
                                               "12345678-1234-5678-1234-56789abcdefe", ["read", "write"], service)
     service.characteristics.append(num_suggestions_char)
+
+    image_char = ImageChar(bus, 15,
+                             "12345678-1234-5678-1234-56789abcdff0", ["write"], service)
+    service.characteristics.append(image_char)
+
+    image_request_char = IntOffsetChar(bus, 16,
+                                         "12345678-1234-5678-1234-56789abcdff1", ["write"], service)
+    service.characteristics.append(image_request_char)
+
+    augmented_image_char = AugmentedImageChar(bus, 17,
+                                                "12345678-1234-5678-1234-56789abcdff2", ["read"], service, image_request_char)
+    service.characteristics.append(augmented_image_char)
 
     ad = Advertisement(bus, 0,SERVICE_UUID)
 

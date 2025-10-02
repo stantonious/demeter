@@ -20,6 +20,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
@@ -29,18 +31,22 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -68,9 +74,15 @@ public class MainActivity extends AppCompatActivity {
     private Spinner plantTypeSpinner;
     private PlotView livePlotView;
     private Button takePictureButton;
+    private Button getAugmentedImageButton;
+    private ImageView augmentedImageView;
+
+    private ByteArrayOutputStream augmentedImageStream = new ByteArrayOutputStream();
+    private int imageReadOffset = 0;
 
     private static final int REQUEST_IMAGE_CAPTURE = 2;
     private static final int REQUEST_CAMERA_PERMISSION = 3;
+    private static final int REQUEST_PREVIEW_IMAGE = 4;
     private String currentPhotoPath;
     private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
 
@@ -115,6 +127,11 @@ public class MainActivity extends AppCompatActivity {
         plantTypeSpinner = findViewById(R.id.plant_type_spinner);
         livePlotView = findViewById(R.id.live_plot_view);
         takePictureButton = findViewById(R.id.take_picture_button);
+        getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
+        augmentedImageView = findViewById(R.id.augmented_image_view);
+
+        takePictureButton.setEnabled(false);
+        getAugmentedImageButton.setEnabled(false);
 
         // Populate the spinner
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
@@ -132,6 +149,10 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 dispatchTakePictureIntent();
             }
+        });
+
+        getAugmentedImageButton.setOnClickListener(v -> {
+            fetchAugmentedImage();
         });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
@@ -191,12 +212,27 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            if (currentPhotoPath != null) {
-                Intent intent = new Intent(this, PreviewActivity.class);
-                intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
-                startActivity(intent);
-            }
+        if (resultCode != RESULT_OK) {
+            return;
+        }
+
+        switch (requestCode) {
+            case REQUEST_IMAGE_CAPTURE:
+                if (currentPhotoPath != null) {
+                    Intent intent = new Intent(this, PreviewActivity.class);
+                    intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                    startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
+                }
+                break;
+            case REQUEST_PREVIEW_IMAGE:
+                if (data != null) {
+                    String imageUriString = data.getStringExtra("image_uri");
+                    if (imageUriString != null) {
+                        Uri imageUri = Uri.parse(imageUriString);
+                        sendImage(imageUri);
+                    }
+                }
+                break;
         }
     }
 
@@ -346,6 +382,8 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
                     readLlmChunk();
+                } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_REQUEST)) {
+                    readAugmentedImageChunk();
                 }
             } else {
                 Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
@@ -357,15 +395,55 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
-                byte[] data = characteristic.getValue();
-                if (data != null && data.length > 0) {
-                    suggestionBuilder.append(new String(data));
-                    if (data.length < 225) {
-                        runOnUiThread(() -> suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString()));
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                if (characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
+                    byte[] data = characteristic.getValue();
+                    if (data != null && data.length > 0) {
+                        suggestionBuilder.append(new String(data));
+                        if (data.length < 225) {
+                            runOnUiThread(() -> {
+                                suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString());
+                                takePictureButton.setEnabled(true);
+                                getAugmentedImageButton.setEnabled(true);
+                                Toast.makeText(MainActivity.this, "Suggestion received. You can now take a picture.", Toast.LENGTH_LONG).show();
+                            });
+                        } else {
+                            llmOffset += data.length;
+                            requestLlmChunk();
+                        }
+                    }
+                } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE)) {
+                    byte[] data = characteristic.getValue();
+                    if (data != null && data.length > 0) {
+                        try {
+                            augmentedImageStream.write(data);
+                            // Check if this is the last chunk (chunk size is less than max)
+                            if (data.length < 512) {
+                                byte[] imageData = augmentedImageStream.toByteArray();
+                                Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                                runOnUiThread(() -> {
+                                    augmentedImageView.setImageBitmap(bitmap);
+                                    augmentedImageView.setVisibility(View.VISIBLE);
+                                    Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+                                });
+                            } else {
+                                imageReadOffset += data.length;
+                                requestAugmentedImageChunk();
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "Error writing to augmented image stream", e);
+                        }
                     } else {
-                        llmOffset += data.length;
-                        requestLlmChunk();
+                        // Empty data also signals end of transfer
+                        byte[] imageData = augmentedImageStream.toByteArray();
+                        if (imageData.length > 0) {
+                            Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                            runOnUiThread(() -> {
+                                augmentedImageView.setImageBitmap(bitmap);
+                                augmentedImageView.setVisibility(View.VISIBLE);
+                                Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+                            });
+                        }
                     }
                 }
             }
@@ -628,6 +706,61 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void sendImage(Uri imageUri) {
+        if (bluetoothGatt == null || imageUri == null) {
+            Log.e(TAG, "Bluetooth not connected or image URI is null.");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Bluetooth not connected.", Toast.LENGTH_SHORT).show());
+            return;
+        }
+
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Service not found.", Toast.LENGTH_SHORT).show());
+            return;
+        }
+
+        final BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
+        if (imageChar == null) {
+            Log.e(TAG, "Image characteristic not found");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Characteristic not found.", Toast.LENGTH_SHORT).show());
+            return;
+        }
+
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show());
+
+        new Thread(() -> {
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
+
+                ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
+                byte[] imageData = byteStream.toByteArray();
+                Log.d(TAG, "Downsampled image size: " + imageData.length + " bytes");
+
+                int chunkSize = 512;
+                for (int i = 0; i < imageData.length; i += chunkSize) {
+                    int end = Math.min(imageData.length, i + chunkSize);
+                    byte[] chunk = Arrays.copyOfRange(imageData, i, end);
+                    Log.d(TAG, "Queuing chunk " + (i / chunkSize + 1) + ", size: " + chunk.length);
+                    writeCharacteristicToQueue(imageChar, chunk);
+                }
+
+                // Send End-Of-Transmission signal
+                Log.d(TAG, "Queuing EOT signal.");
+                writeCharacteristicToQueue(imageChar, "EOT".getBytes());
+
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show());
+
+            } catch (IOException e) {
+                Log.e(TAG, "Error reading image file", e);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
     private void updateLedIndicator(BleConnectionStatus status) {
         int drawableId;
         switch (status) {
@@ -647,5 +780,51 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
         runOnUiThread(() -> ledIndicator.setImageDrawable(ContextCompat.getDrawable(MainActivity.this, drawableId)));
+    }
+
+    private void fetchAugmentedImage() {
+        if (bluetoothGatt == null) {
+            Toast.makeText(this, "Bluetooth not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        augmentedImageStream.reset();
+        imageReadOffset = 0;
+        augmentedImageView.setVisibility(View.GONE);
+        Toast.makeText(this, "Generating and fetching augmented image... Please wait.", Toast.LENGTH_LONG).show();
+        requestAugmentedImageChunk();
+    }
+
+    private void requestAugmentedImageChunk() {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found for augmented image request");
+            return;
+        }
+        BluetoothGattCharacteristic requestChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_REQUEST);
+        if (requestChar == null) {
+            Log.e(TAG, "Image Request characteristic not found");
+            return;
+        }
+        byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(imageReadOffset).array();
+        writeCharacteristicToQueue(requestChar, value);
+    }
+
+    private void readAugmentedImageChunk() {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) {
+            Log.e(TAG, "Demeter service not found for augmented image read");
+            return;
+        }
+        BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_AUGMENTED_IMAGE);
+        if (imageChar == null) {
+            Log.e(TAG, "Augmented Image characteristic not found");
+            return;
+        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        bluetoothGatt.readCharacteristic(imageChar);
     }
 }

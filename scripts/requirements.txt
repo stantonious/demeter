@@ -4,3 +4,4 @@ PyGObject
 pyserial
 ollama
 adafruit-circuitpython-ads1x15
+Pillow
