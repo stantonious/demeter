@@ -812,7 +812,7 @@ public class MainActivity extends AppCompatActivity {
                         break;
                 }
                 Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 256, 256, true);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 512, 512, true);
 
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
@@ -822,7 +822,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
 
-                int chunkSize = 256;
+                int chunkSize = 512;
                 for (int i = 0; i < totalSize; i += chunkSize) {
                     int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);

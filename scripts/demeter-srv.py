@@ -758,7 +758,7 @@ class ImageChar(dbus.service.Object):
                 plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
 
                 output_buffer = io.BytesIO()
-                plant_image.resize((256,256)).convert("RGB").save(output_buffer, format="JPEG")
+                plant_image.resize((512,512)).convert("RGB").save(output_buffer, format="JPEG")
                 g_augmented_image_data = output_buffer.getvalue()
 
                 print("Image composition successful.")
