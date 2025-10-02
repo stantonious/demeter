@@ -613,19 +613,9 @@ class ImageChar(dbus.service.Object):
             try:
                 # Open the user's photo
                 user_image = Image.open(io.BytesIO(self.image_data))
-                draw = ImageDraw.Draw(user_image)
-                width, height = user_image.size
-
-                # Draw the yellow box first
-                box_size = min(width, height) // 2
-                left = (width - box_size) // 2
-                top = (height - box_size) // 2
-                right = left + box_size
-                bottom = top + box_size
-                draw.rectangle([left, top, right, bottom], outline="yellow", width=10)
-
                 # Generate and download the DALL-E image
-                dalle_thread = threading.Thread(target=generate_dalle_image, args=(g_suggested_plant_name,))
+                print ('curr plant name',g_suggested_plant_name)
+                dalle_thread = threading.Thread(target=generate_dalle_image_inpaint, args=(user_image,g_suggested_plant_name,))
                 dalle_thread.start()
                 dalle_thread.join()
 
@@ -635,19 +625,8 @@ class ImageChar(dbus.service.Object):
                 # Open the generated plant image
                 plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
 
-                # Resize plant image to fit inside the box with a small margin
-                margin = 20
-                plant_size = box_size - (2 * margin)
-                plant_image = plant_image.resize((plant_size, plant_size))
-
-                # Paste the plant image inside the box
-                paste_x = left + margin
-                paste_y = top + margin
-                user_image.paste(plant_image, (paste_x, paste_y), plant_image)
-
-                # Save the final image to the global variable
                 output_buffer = io.BytesIO()
-                user_image.save(output_buffer, format="JPEG")
+                plant_image.resize((256,256)).convert("RGB").save(output_buffer, format="JPEG")
                 g_augmented_image_data = output_buffer.getvalue()
 
                 print("Image composition successful.")
@@ -744,7 +723,7 @@ def update_generating_status(start_time, prompt=''):
     global current_llm_response
     while is_generating:
         elapsed = int(time.time() - start_time)
-        current_llm_response = f"Generating \n\t{prompt}.\n\t{elapsed}s"
+        current_llm_response = f""
         time.sleep(1)
 
 
@@ -820,7 +799,8 @@ def generate_chatgpt_response(prompt, llm_status_char):
         lines = response.split('\n')
         for line in lines:
             line = line.strip()
-            if line.startswith(('-', '*')):
+            #if line.startswith(('-', '*')):
+            if True:
                 plant_name = line.lstrip('*- ').strip()
                 g_suggested_plant_name = plant_name
                 print(f"Stored suggested plant name: {g_suggested_plant_name}")
@@ -831,6 +811,61 @@ def generate_chatgpt_response(prompt, llm_status_char):
     finally:
         is_generating = False
         llm_status_char.set_status(2)  # Ready
+
+
+def generate_dalle_image_inpaint(image,plant_name):
+    global g_generated_plant_image_data
+    print ('plant name',plant_name)
+    if not plant_name:
+        print("No plant name available to generate an image.")
+        return
+
+    try:
+
+        print(1)
+        mask = Image.new("RGBA",image.size,(0,0,0,255))
+        print(2)
+        draw = ImageDraw.Draw(mask)
+        print(3)
+        #(x1,y1,x2,y2)
+        draw.rectangle((100,100,200,200),fill=(0,0,0,0))
+        print(4)
+
+        img_bytes = io.BytesIO()
+        print(5)
+        image.convert("RGBA").save('./img.png',format="PNG")
+        img_bytes.seek(0)
+        print(6)
+        mask_bytes = io.BytesIO()
+        print(7)
+        mask.convert("RGBA").save('./mask.png',format="PNG")
+        mask_bytes.seek(0)
+        print(8)
+
+        with open('./img.png','rb') as image_f, open('./mask.png','rb') as mask_f:
+            response = client.images.edit(
+                model="dall-e-2",
+                image=image_f,
+                mask=mask_f,
+                prompt=f"A clear, high-quality image of a {plant_name} plant that is firmly planted and integrated with its surroundings.",
+                n=1,  # Number of images to generate
+                size="1024x1024" #Image resolution
+            )
+            # The generated image URL is in the response
+            image_url = response.data[0].url
+            image_url = response.data[0].url
+            print(f"Generated image URL: {image_url}")
+
+            # Download the image
+            with httpx.stream("GET", image_url) as r:
+                image_data = bytearray()
+                for chunk in r.iter_bytes():
+                    image_data.extend(chunk)
+                g_generated_plant_image_data = image_data
+                print("Successfully downloaded generated image.")
+
+    except Exception as e:
+        print(f"Error generating or downloading DALL-E image: {e}")
 
 
 def generate_dalle_image(plant_name):
