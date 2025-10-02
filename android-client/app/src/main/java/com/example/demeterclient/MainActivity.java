@@ -78,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     private Button getAugmentedImageButton;
     private ImageView augmentedImageView;
     private TextView augmentedImageProgressTextView;
+    private TextView uploadProgressTextView;
 
     private ByteArrayOutputStream augmentedImageStream = new ByteArrayOutputStream();
     private int imageReadOffset = 0;
@@ -132,6 +133,7 @@ public class MainActivity extends AppCompatActivity {
         getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
         augmentedImageView = findViewById(R.id.augmented_image_view);
         augmentedImageProgressTextView = findViewById(R.id.augmented_image_progress_text_view);
+        uploadProgressTextView = findViewById(R.id.upload_progress_text_view);
 
         takePictureButton.setEnabled(false);
         getAugmentedImageButton.setEnabled(false);
@@ -762,7 +764,16 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show());
+        final BluetoothGattCharacteristic progressChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS);
+        if (progressChar == null) {
+            Log.e(TAG, "Image Upload Progress characteristic not found");
+        }
+
+        runOnUiThread(() -> {
+            Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show();
+            uploadProgressTextView.setVisibility(View.VISIBLE);
+            uploadProgressTextView.setText("Upload Progress: 0%");
+        });
 
         new Thread(() -> {
             try {
@@ -773,25 +784,39 @@ public class MainActivity extends AppCompatActivity {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
                 byte[] imageData = byteStream.toByteArray();
-                Log.d(TAG, "Downsampled image size: " + imageData.length + " bytes");
+                final int totalSize = imageData.length;
+                Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
                 int chunkSize = 512;
-                for (int i = 0; i < imageData.length; i += chunkSize) {
-                    int end = Math.min(imageData.length, i + chunkSize);
+                for (int i = 0; i < totalSize; i += chunkSize) {
+                    int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
                     Log.d(TAG, "Queuing chunk " + (i / chunkSize + 1) + ", size: " + chunk.length);
                     writeCharacteristicToQueue(imageChar, chunk);
+
+                    final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
+                    runOnUiThread(() -> uploadProgressTextView.setText("Upload Progress: " + progress + "%"));
+                    if (progressChar != null) {
+                        byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
+                        writeCharacteristicToQueue(progressChar, progressValue);
+                    }
                 }
 
                 // Send End-Of-Transmission signal
                 Log.d(TAG, "Queuing EOT signal.");
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
 
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
+                    uploadProgressTextView.setVisibility(View.GONE);
+                });
 
             } catch (IOException e) {
                 Log.e(TAG, "Error reading image file", e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    uploadProgressTextView.setVisibility(View.GONE);
+                });
             }
         }).start();
     }

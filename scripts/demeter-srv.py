@@ -625,6 +625,37 @@ class AugmentedImageProgressChar(dbus.service.Object):
         pass
 
 
+class ImageUploadProgressChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.progress = 0  # 0-100
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        if len(value) == 4:
+            self.progress = struct.unpack('<i', bytes(value))[0]
+            print(f"Original image upload progress: {self.progress}%")
+        else:
+            print(f"Received invalid byte array length for progress: {len(value)}")
+
+
 class PChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -1612,6 +1643,10 @@ def main():
     augmented_image_progress_char = AugmentedImageProgressChar(bus, 19,
                                                                 "12345678-1234-5678-1234-56789abcdff4", ["read", "notify"], service)
     service.characteristics.append(augmented_image_progress_char)
+
+    image_upload_progress_char = ImageUploadProgressChar(bus, 20,
+                                                            "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
+    service.characteristics.append(image_upload_progress_char)
 
     ad = Advertisement(bus, 0,SERVICE_UUID)
 
