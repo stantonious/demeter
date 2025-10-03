@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Demeter Client</string>
+    <string name="app_name">Demeter</string>
     <string-array name="plant_types">
         <item>Vegetable</item>
         <item>Fruit</item>

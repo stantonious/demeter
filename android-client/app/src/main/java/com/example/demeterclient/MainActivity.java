@@ -33,6 +33,8 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.widget.Toolbar;
+import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
@@ -105,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
+    private ImageView ledIndicator;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -122,6 +125,10 @@ public class MainActivity extends AppCompatActivity {
             currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
         }
         setContentView(R.layout.activity_main);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        ledIndicator = findViewById(R.id.led_indicator);
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -147,32 +154,28 @@ public class MainActivity extends AppCompatActivity {
         final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
 
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            Toast.makeText(this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        startBleScan();
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.ACCESS_FINE_LOCATION},
-                    1);
-        } else {
-            bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-            scanLeDevice(true);
-        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-                scanLeDevice(true);
+            // Check if ALL permissions were granted. A simple check is to see if any were denied.
+            boolean allGranted = true;
+            for (int grantResult : grantResults) {
+                if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+
+            if (allGranted) {
+                // Permissions have been granted, try to start the scan again.
+                startBleScan();
             } else {
-                Toast.makeText(this, "Permissions not granted.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "All permissions are required to scan for devices.", Toast.LENGTH_LONG).show();
             }
         } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -275,6 +278,35 @@ public class MainActivity extends AppCompatActivity {
         File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         currentPhotoPath = image.getAbsolutePath();
         return image;
+    }
+// In MainActivity.java
+
+    private void startBleScan() {
+        // Check for all required permissions at once
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            // If any permission is missing, request them all.
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    },
+                    1); // Use your permission request code
+            return; // Stop here and wait for the user's response.
+        }
+
+        // --- If we get here, all permissions are granted ---
+
+        // 1. Ensure the scanner is initialized. This is the critical fix.
+        if (bluetoothLeScanner == null) {
+            bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+        }
+
+        // 2. Now it is safe to start the scan.
+        scanLeDevice(true);
     }
 
     private void scanLeDevice(final boolean enable) {
@@ -594,7 +626,9 @@ public class MainActivity extends AppCompatActivity {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setUploadProgressVisibility(View.VISIBLE);
+                fragment.setUploadProgressBarVisibility(View.VISIBLE);
                 fragment.setUploadProgressText("Upload Progress: 0%");
+                fragment.setUploadProgress(0);
             }
         });
 
@@ -632,6 +666,7 @@ public class MainActivity extends AppCompatActivity {
                         SuggestFragment fragment = getSuggestFragment();
                         if (fragment != null) {
                             fragment.setUploadProgressText("Upload Progress: " + progress + "%");
+                            fragment.setUploadProgress(progress);
                         }
                     });
                     if (progressChar != null) {
@@ -833,36 +868,31 @@ public class MainActivity extends AppCompatActivity {
     private void updateLedIndicator(BleConnectionStatus status) {
         currentStatus = status;
         runOnUiThread(() -> {
-            SettingsFragment fragment = getSettingsFragment();
-            if (fragment != null) {
-                int drawableId;
-                String statusText;
-                switch (status) {
-                    case SCANNING:
-                        drawableId = R.drawable.led_yellow;
-                        statusText = "Scanning...";
-                        break;
-                    case CONNECTING:
-                        drawableId = R.drawable.led_yellow;
-                        statusText = "Connecting...";
-                        break;
-                    case CONNECTED:
-                        drawableId = R.drawable.led_green;
-                        statusText = "Connected";
-                        break;
-                    case ERROR:
-                        drawableId = R.drawable.led_red;
-                        statusText = "Error";
-                        break;
-                    case DISCONNECTED:
-                    default:
-                        drawableId = R.drawable.led_grey;
-                        statusText = "Disconnected";
-                        break;
-                }
-                fragment.updateLedIndicator(drawableId);
-                fragment.setStatusText(statusText);
+            if (ledIndicator == null) return;
+            int drawableId;
+            switch (status) {
+                case SCANNING:
+                    drawableId = R.drawable.led_yellow;
+                    break;
+                case CONNECTING:
+                    drawableId = R.drawable.led_yellow;
+                    break;
+                case CONNECTED:
+                    drawableId = R.drawable.led_green;
+                    SuggestFragment suggestFragment = getSuggestFragment();
+                    if (suggestFragment != null) {
+                        suggestFragment.enableGetSuggestionButton(true);
+                    }
+                    break;
+                case ERROR:
+                    drawableId = R.drawable.led_red;
+                    break;
+                case DISCONNECTED:
+                default:
+                    drawableId = R.drawable.led_grey;
+                    break;
             }
+            ledIndicator.setImageResource(drawableId);
         });
     }
 

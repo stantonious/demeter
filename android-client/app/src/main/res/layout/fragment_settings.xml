@@ -7,29 +7,15 @@
     android:padding="16dp"
     tools:context=".SettingsFragment">
 
-    <RelativeLayout
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/status_text_view"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp">
-
-        <ImageView
-            android:id="@+id/led_indicator"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_centerVertical="true"
-            android:layout_marginEnd="8dp"
-            android:src="@drawable/led_grey"
-            android:layout_toStartOf="@id/status_text_view"/>
-
-        <TextView
-            android:id="@+id/status_text_view"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="Scanning..."
-            android:textSize="18sp"
-            android:textStyle="bold" />
-    </RelativeLayout>
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:text="Disconnected"
+        android:textSize="18sp"
+        android:textStyle="bold" />
 
     <TextView
         android:layout_width="wrap_content"
