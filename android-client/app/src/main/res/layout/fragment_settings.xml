@@ -44,4 +44,19 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Augmentation Options"
+        android:textStyle="bold"/>
+
+    <EditText
+        android:id="@+id/augment_size_edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Augment Size (5-200)"
+        android:inputType="number" />
+
 </LinearLayout>

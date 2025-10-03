@@ -909,6 +909,18 @@ public class MainActivity extends AppCompatActivity {
         this.plantType = plantType;
     }
 
+    public void setAugmentSize(int size) {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+
+        BluetoothGattCharacteristic augmentSizeChar = service.getCharacteristic(GattAttributes.UUID_AUGMENT_SIZE);
+        if (augmentSizeChar != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(size).array();
+            writeCharacteristicToQueue(augmentSizeChar, value);
+        }
+    }
+
     public void writeAoiCoordinates(int x, int y) {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);

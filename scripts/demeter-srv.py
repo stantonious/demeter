@@ -66,6 +66,7 @@ g_suggested_plant_name = ""
 g_generated_plant_image_data = bytearray()
 g_aoi_x=0
 g_aoi_y=0
+g_augment_size = 100
 
 
 class Characteristic(dbus.service.Object):
@@ -1031,8 +1032,8 @@ def generate_chatgpt_response(prompt, llm_status_char):
 
 
 def generate_dalle_image_inpaint(image, plant_name):
-    global g_generated_plant_image_data,g_aoi_x,g_aoi_y
-    mask_size = 100
+    global g_generated_plant_image_data,g_aoi_x,g_aoi_y, g_augment_size
+    mask_size = g_augment_size
     print('plant name', plant_name)
     if not plant_name:
         print("No plant name available to generate an image.")
@@ -1271,6 +1272,52 @@ class NumSuggestionsChar(dbus.service.Object):
         else:
             print(
                 f"Received invalid byte array length for num suggestions: {len(value)}")
+
+
+class AugmentSizeChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = g_augment_size
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        packed = struct.pack('<i', self.value)
+        return [dbus.Byte(b) for b in packed]
+
+    @dbus.service.method("org.bluez.GattCharacteristic1",
+                         in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_augment_size
+        if len(value) == 4:
+            written_value = struct.unpack('<i', bytes(value))[0]
+            if 5 <= written_value <= 200:
+                print(f"Set augment size to: {written_value}")
+                g_augment_size = written_value
+                self.value = written_value
+            else:
+                print(
+                    f"Invalid augment size: {written_value}. Must be between 5 and 200.")
+        else:
+            print(
+                f"Received invalid byte array length for augment size: {len(value)}")
 
 
 class IntWritableChar(dbus.service.Object):
@@ -1727,6 +1774,10 @@ def main():
     aoi_y_char = AoiYChar(bus, 22,
                                         "12345678-1234-5678-1234-56789abcdff7", ["write"], service, name="AOI Y")
     service.characteristics.append(aoi_y_char)
+
+    augment_size_char = AugmentSizeChar(bus, 23,
+                                        "12345678-1234-5678-1234-56789abcdff8", ["read", "write"], service)
+    service.characteristics.append(augment_size_char)
 
     ad = Advertisement(bus, 0, SERVICE_UUID)
 
