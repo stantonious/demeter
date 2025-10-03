@@ -844,4 +844,22 @@ public class MainActivity extends AppCompatActivity {
     public void setPlantType(int plantType) {
         this.plantType = plantType;
     }
+
+    public void writeAoiCoordinates(int x, int y) {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+
+        BluetoothGattCharacteristic aoiXChar = service.getCharacteristic(GattAttributes.UUID_AOI_X);
+        if (aoiXChar != null) {
+            byte[] valueX = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(x).array();
+            writeCharacteristicToQueue(aoiXChar, valueX);
+        }
+
+        BluetoothGattCharacteristic aoiYChar = service.getCharacteristic(GattAttributes.UUID_AOI_Y);
+        if (aoiYChar != null) {
+            byte[] valueY = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(y).array();
+            writeCharacteristicToQueue(aoiYChar, valueY);
+        }
+    }
 }
