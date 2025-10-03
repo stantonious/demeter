@@ -636,6 +636,7 @@ class ImageUploadProgressChar(dbus.service.Object):
         self.flags = flags
         self.service = service
         self.progress = 0  # 0-100
+        self.notifying = False
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
@@ -650,14 +651,36 @@ class ImageUploadProgressChar(dbus.service.Object):
     def get_path(self):
         return dbus.ObjectPath(self.path)
 
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="a{sv}", out_signature="ay")
+    def ReadValue(self, options):
+        return [dbus.Byte(self.progress)]
+
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
         if len(value) == 4:
-            self.progress = struct.unpack('<i', bytes(value))[0]
+            written_progress = struct.unpack('<i', bytes(value))[0]
+            self.progress = max(0, min(100, written_progress))
             print(f"Original image upload progress: {self.progress}%")
+            if self.notifying:
+                self.PropertiesChanged("org.bluez.GattCharacteristic1", {
+                                       "Value": [dbus.Byte(self.progress)]}, [])
         else:
             print(
                 f"Received invalid byte array length for progress: {len(value)}")
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StartNotify(self):
+        if self.notifying:
+            return
+        self.notifying = True
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
+    def StopNotify(self):
+        self.notifying = False
+
+    @dbus.service.signal("org.freedesktop.DBus.Properties", signature="sa{sv}as")
+    def PropertiesChanged(self, interface, changed, invalidated):
+        pass
 
 
 class AoiXChar(dbus.service.Object):
@@ -1764,7 +1787,7 @@ def main():
     service.characteristics.append(augmented_image_progress_char)
 
     image_upload_progress_char = ImageUploadProgressChar(bus, 20,
-                                                         "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
+                                                         "12345678-1234-5678-1234-56789abcdff5", ["write", "notify", "read"], service)
     service.characteristics.append(image_upload_progress_char)
 
     aoi_x_char = AoiXChar(bus, 21,

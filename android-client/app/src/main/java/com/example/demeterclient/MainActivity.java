@@ -422,6 +422,8 @@ public class MainActivity extends AppCompatActivity {
                 handleImageStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS)) {
                 handleAugmentedImageProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
+            } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS)) {
+                handleImageUploadProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else {
                 updatePlotData(characteristic);
             }
@@ -452,6 +454,23 @@ public class MainActivity extends AppCompatActivity {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setSuggestionText("Suggestion: Requesting...");
+            }
+        });
+    }
+
+    private void handleImageUploadProgressChange(int progress) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                if (progress > 0 && progress < 100) {
+                    fragment.setUploadProgressVisibility(View.VISIBLE);
+                    fragment.setUploadProgressBarVisibility(View.VISIBLE);
+                    fragment.setUploadProgressText("Upload Progress: " + progress + "%");
+                    fragment.setUploadProgress(progress);
+                } else {
+                    fragment.setUploadProgressVisibility(View.GONE);
+                    fragment.setUploadProgressBarVisibility(View.GONE);
+                }
             }
         });
     }
@@ -529,7 +548,7 @@ public class MainActivity extends AppCompatActivity {
                 GattAttributes.UUID_PH, GattAttributes.UUID_HUMID, GattAttributes.UUID_SUN,
                 GattAttributes.UUID_MOISTURE, GattAttributes.UUID_LIGHT,
                 GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS,
-                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS
+                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS, GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS
         );
         currentSubscriptionIndex = 0;
         subscribeNextCharacteristic(gatt);
@@ -662,13 +681,6 @@ public class MainActivity extends AppCompatActivity {
                     writeCharacteristicToQueue(imageChar, chunk);
 
                     final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
-                    runOnUiThread(() -> {
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setUploadProgressText("Upload Progress: " + progress + "%");
-                            fragment.setUploadProgress(progress);
-                        }
-                    });
                     if (progressChar != null) {
                         byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
                         writeCharacteristicToQueue(progressChar, progressValue);
@@ -677,10 +689,6 @@ public class MainActivity extends AppCompatActivity {
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setUploadProgressVisibility(View.GONE);
-                    }
                 });
             } catch (IOException e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
