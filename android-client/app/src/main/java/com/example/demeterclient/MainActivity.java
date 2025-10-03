@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
@@ -20,6 +21,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Looper;
 import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -68,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean scanning;
     private Handler handler;
     private BluetoothGatt bluetoothGatt;
+    private Handler bleHandler = new Handler(Looper.getMainLooper());
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private ImageView ledIndicator;
@@ -291,13 +294,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void scanLeDevice(final boolean enable) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "BLUETOOTH_SCAN permission not granted. Cannot scan.");
+            // Optionally, request permissions here or show a Toast.
+            return; // Exit the method entirely.
+        }
+
         if (enable) {
             handler.postDelayed(() -> {
                 if (scanning) {
                     scanning = false;
-                    if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                        return;
-                    }
+                    // Permission is already checked, so this is safe.
                     bluetoothLeScanner.stopScan(leScanCallback);
                     statusTextView.setText("Scan stopped.");
                 }
@@ -305,15 +312,18 @@ public class MainActivity extends AppCompatActivity {
 
             scanning = true;
             ScanFilter filter = new ScanFilter.Builder()
-              .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
-                .build();
+                    .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
+                    .build();
             List<ScanFilter> filters = Collections.singletonList(filter);
             ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+
+            // Permission is already checked, so this is safe.
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
             statusTextView.setText("Scanning for Demeter...");
             updateLedIndicator(BleConnectionStatus.SCANNING);
         } else {
             scanning = false;
+            // Permission is already checked, so this is safe.
             bluetoothLeScanner.stopScan(leScanCallback);
             statusTextView.setText("Scan stopped.");
             if (bluetoothGatt == null) {
@@ -347,32 +357,43 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+
+        // At the top of your MainActivity or inside the gattCallback
+
+
+        // ... inside gattCallback ...@Override
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                if (newState == BluetoothGatt.STATE_CONNECTED) {
-                    Log.d(TAG, "Connected to GATT server.");
-                    runOnUiThread(() -> {
-                        updateLedIndicator(BleConnectionStatus.CONNECTED);
-                        statusTextView.setText("Connected");
-                    });
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        return;
+            if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
+                Log.d(TAG, "Connected to GATT server. Waiting before discovering services...");
+                runOnUiThread(() -> {
+                    updateLedIndicator(BleConnectionStatus.CONNECTED);
+                    statusTextView.setText("Connected");
+                });
+
+                // FIX: Introduce a delay before calling discoverServices.
+                // This call happens on the background binder thread, which is correct.
+                // We use a handler to schedule it.
+                bleHandler.postDelayed(() -> {
+                    if (bluetoothGatt != null) {
+                        if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                            Log.e(TAG, "BLUETOOTH_CONNECT permission missing for discoverServices");
+                            return;
+                        }
+                        Log.d(TAG, "Starting service discovery...");
+                        boolean success = bluetoothGatt.discoverServices();
+                        if (!success) {
+                            Log.e(TAG, "Service discovery failed to initiate.");
+                        }
                     }
-                    gatt.discoverServices();
-                } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-                    Log.d(TAG, "Disconnected from GATT server.");
-                    runOnUiThread(() -> {
-                        updateLedIndicator(BleConnectionStatus.DISCONNECTED);
-                        statusTextView.setText("Disconnected");
-                    });
-                }
+                }, 600); // 600ms is a safe delay for most devices.
+
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                Log.d(TAG, "Disconnected from GATT server.");
+                // Your disconnect logic...
             } else {
                 Log.e(TAG, "onConnectionStateChange received error status: " + status);
-                runOnUiThread(() -> {
-                    updateLedIndicator(BleConnectionStatus.ERROR);
-                    statusTextView.setText("Connection Error");
-                });
+                // Your error handling logic...
             }
         }
 
