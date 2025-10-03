@@ -102,4 +102,42 @@ public class SettingsFragment extends Fragment {
             statusTextView.setText(text);
         }
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        updateConnectionStatus(mainActivity.getCurrentConnectionStatus());
+    }
+
+    public void updateConnectionStatus(MainActivity.BleConnectionStatus status) {
+        if (!isAdded()) return;
+
+        int drawableId;
+        String statusText;
+        switch (status) {
+            case SCANNING:
+                drawableId = R.drawable.led_yellow;
+                statusText = "Scanning...";
+                break;
+            case CONNECTING:
+                drawableId = R.drawable.led_yellow;
+                statusText = "Connecting...";
+                break;
+            case CONNECTED:
+                drawableId = R.drawable.led_green;
+                statusText = "Connected";
+                break;
+            case ERROR:
+                drawableId = R.drawable.led_red;
+                statusText = "Error";
+                break;
+            case DISCONNECTED:
+            default:
+                drawableId = R.drawable.led_grey;
+                statusText = "Disconnected";
+                break;
+        }
+        updateLedIndicator(drawableId);
+        setStatusText(statusText);
+    }
 }

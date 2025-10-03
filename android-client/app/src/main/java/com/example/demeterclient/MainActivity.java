@@ -93,13 +93,15 @@ public class MainActivity extends AppCompatActivity {
     public ArrayList<Float> moistureHistory = new ArrayList<>();
     public ArrayList<Float> lightHistory = new ArrayList<>();
 
-    private enum BleConnectionStatus {
+    public enum BleConnectionStatus {
         DISCONNECTED,
         SCANNING,
         CONNECTING,
         CONNECTED,
         ERROR
     }
+
+    private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -795,6 +797,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateLedIndicator(BleConnectionStatus status) {
+        currentStatus = status;
         runOnUiThread(() -> {
             SettingsFragment fragment = getSettingsFragment();
             if (fragment != null) {
@@ -827,6 +830,10 @@ public class MainActivity extends AppCompatActivity {
                 fragment.setStatusText(statusText);
             }
         });
+    }
+
+    public BleConnectionStatus getCurrentConnectionStatus() {
+        return currentStatus;
     }
 
     // Setters for settings
