@@ -204,9 +204,10 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_PREVIEW_IMAGE:
                 if (data != null) {
                     String imageUriString = data.getStringExtra("image_uri");
-                    int aoiX = data.getIntExtra("aoi_x", 0);
-                    int aoiY = data.getIntExtra("aoi_y", 0);
-                    writeAoiCoordinates(aoiX, aoiY);
+                    ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
+                    if (aoiList != null && !aoiList.isEmpty()) {
+                        writeAoiList(aoiList);
+                    }
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
                         sendImage(imageUri);
@@ -231,21 +232,15 @@ public class MainActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     String imageUriString = data.getStringExtra("image_uri");
 
-                    // *** THIS IS THE NEW PART ***
-                    // Check if AOI coordinates were sent back
-                    if (data.hasExtra("aoi_x") && data.hasExtra("aoi_y")) {
-                        int aoiX = data.getIntExtra("aoi_x", 0);
-                        int aoiY = data.getIntExtra("aoi_y", 0);
-
-                        // Now you can call your method with the coordinates
-                        writeAoiCoordinates(aoiX, aoiY);
+                    if (data.hasExtra("aoi_list")) {
+                        ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
+                        if (aoiList != null && !aoiList.isEmpty()) {
+                            writeAoiList(aoiList);
+                        }
                     }
-                    // *** END OF NEW PART ***
 
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
-                        // Now you can use the final image URI, for example, to send it via BLE
-                        // sendImageViaBle(imageUri);
                         Log.d(TAG, "Final image URI received: " + imageUri.toString());
                     }
                 }
@@ -935,21 +930,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void writeAoiCoordinates(int x, int y) {
-        if (bluetoothGatt == null) return;
+    public void writeAoiList(List<Integer> aois) {
+        if (bluetoothGatt == null || aois == null || aois.isEmpty()) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
 
-        BluetoothGattCharacteristic aoiXChar = service.getCharacteristic(GattAttributes.UUID_AOI_X);
-        if (aoiXChar != null) {
-            byte[] valueX = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(x).array();
-            writeCharacteristicToQueue(aoiXChar, valueX);
-        }
-
-        BluetoothGattCharacteristic aoiYChar = service.getCharacteristic(GattAttributes.UUID_AOI_Y);
-        if (aoiYChar != null) {
-            byte[] valueY = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(y).array();
-            writeCharacteristicToQueue(aoiYChar, valueY);
+        BluetoothGattCharacteristic aoiListChar = service.getCharacteristic(GattAttributes.UUID_AOI_LIST);
+        if (aoiListChar != null) {
+            ByteBuffer byteBuffer = ByteBuffer.allocate(aois.size() * 4);
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            for (int point : aois) {
+                byteBuffer.putInt(point);
+            }
+            byte[] value = byteBuffer.array();
+            writeCharacteristicToQueue(aoiListChar, value);
         }
     }
 }
