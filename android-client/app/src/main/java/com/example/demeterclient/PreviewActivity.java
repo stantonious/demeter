@@ -24,7 +24,7 @@ import java.util.ArrayList;
 public class PreviewActivity extends AppCompatActivity {
 
     private Uri imageUri;
-    private ArrayList<Integer> aoiPoints = new ArrayList<>();
+    private ArrayList<Integer> rawAoiPoints = new ArrayList<>(); // Store raw bitmap coordinates
     private ImageView previewImageView;
     private Button clearButton;
 
@@ -97,14 +97,13 @@ public class PreviewActivity extends AppCompatActivity {
                 int bmpY = (int) touchPoint[1];
 
                 if (bmpX >= 0 && bmpX < originalBitmap.getWidth() && bmpY >= 0 && bmpY < originalBitmap.getHeight()) {
-                    int normalizedX = (int) (bmpX * (512.0 / originalBitmap.getWidth()));
-                    int normalizedY = (int) (bmpY * (512.0 / originalBitmap.getHeight()));
-                    aoiPoints.add(normalizedX);
-                    aoiPoints.add(normalizedY);
+                    // Store raw coordinates for drawing
+                    rawAoiPoints.add(bmpX);
+                    rawAoiPoints.add(bmpY);
 
                     drawMarkers();
 
-                    int numAois = aoiPoints.size() / 2;
+                    int numAois = rawAoiPoints.size() / 2;
                     Toast.makeText(PreviewActivity.this, numAois + " AOI(s) selected", Toast.LENGTH_SHORT).show();
                 }
             }
@@ -119,13 +118,26 @@ public class PreviewActivity extends AppCompatActivity {
         sendButton.setOnClickListener(v -> {
             Intent resultIntent = new Intent();
             resultIntent.putExtra("image_uri", imageUri.toString());
-            resultIntent.putIntegerArrayListExtra("aoi_list", aoiPoints);
+
+            // Normalize points to 512x512 before sending
+            ArrayList<Integer> normalizedAoiPoints = new ArrayList<>();
+            if (originalBitmap != null) {
+                for (int i = 0; i < rawAoiPoints.size(); i += 2) {
+                    int rawX = rawAoiPoints.get(i);
+                    int rawY = rawAoiPoints.get(i + 1);
+                    int normalizedX = (int) (rawX * (512.0 / originalBitmap.getWidth()));
+                    int normalizedY = (int) (rawY * (512.0 / originalBitmap.getHeight()));
+                    normalizedAoiPoints.add(normalizedX);
+                    normalizedAoiPoints.add(normalizedY);
+                }
+            }
+            resultIntent.putIntegerArrayListExtra("aoi_list", normalizedAoiPoints);
             setResult(RESULT_OK, resultIntent);
             finish();
         });
 
         clearButton.setOnClickListener(v -> {
-            aoiPoints.clear();
+            rawAoiPoints.clear();
             mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
             previewImageView.setImageBitmap(mutableBitmap);
             Toast.makeText(PreviewActivity.this, "AOIs cleared", Toast.LENGTH_SHORT).show();
@@ -139,9 +151,9 @@ public class PreviewActivity extends AppCompatActivity {
         float scale = (float)originalBitmap.getWidth() / 512.0f;
         float radius = (augmentSize / 2.0f) * scale;
 
-        for (int i = 0; i < aoiPoints.size(); i += 2) {
-            float bmpX = aoiPoints.get(i) * scale;
-            float bmpY = aoiPoints.get(i + 1) * scale;
+        for (int i = 0; i < rawAoiPoints.size(); i += 2) {
+            float bmpX = rawAoiPoints.get(i);
+            float bmpY = rawAoiPoints.get(i + 1);
             canvas.drawCircle(bmpX, bmpY, radius, paint);
         }
         previewImageView.setImageBitmap(mutableBitmap);
