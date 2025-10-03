@@ -18,6 +18,7 @@ public class SuggestFragment extends Fragment {
     private Button getSuggestionButton;
     private TextView suggestionTextView;
     private TextView uploadProgressTextView;
+    private ProgressBar uploadProgressBar;
     private Button takePictureButton;
     private Button getAugmentedImageButton;
     private TextView augmentedImageProgressTextView;
@@ -40,6 +41,7 @@ public class SuggestFragment extends Fragment {
         getSuggestionButton = view.findViewById(R.id.get_suggestion_button);
         suggestionTextView = view.findViewById(R.id.suggestion_text_view);
         uploadProgressTextView = view.findViewById(R.id.upload_progress_text_view);
+        uploadProgressBar = view.findViewById(R.id.upload_progress_bar);
         takePictureButton = view.findViewById(R.id.take_picture_button);
         getAugmentedImageButton = view.findViewById(R.id.get_augmented_image_button);
         augmentedImageProgressTextView = view.findViewById(R.id.augmented_image_progress_text_view);
@@ -59,6 +61,11 @@ public class SuggestFragment extends Fragment {
         getAugmentedImageButton.setOnClickListener(v -> {
             mainActivity.fetchAugmentedImage();
         });
+
+        // Initially disable buttons
+        getSuggestionButton.setEnabled(false);
+        takePictureButton.setEnabled(false);
+        getAugmentedImageButton.setEnabled(false);
     }
 
     // Public methods to be called from MainActivity
@@ -74,12 +81,24 @@ public class SuggestFragment extends Fragment {
         uploadProgressTextView.setVisibility(visibility);
     }
 
+    public void setUploadProgressBarVisibility(int visibility) {
+        uploadProgressBar.setVisibility(visibility);
+    }
+
+    public void setUploadProgress(int progress) {
+        uploadProgressBar.setProgress(progress);
+    }
+
     public void setAugmentedImageProgressText(String text) {
         augmentedImageProgressTextView.setText(text);
     }
 
     public void setAugmentedImageProgressVisibility(int visibility) {
         augmentedImageProgressTextView.setVisibility(visibility);
+    }
+
+    public void enableGetSuggestionButton(boolean enabled) {
+        getSuggestionButton.setEnabled(enabled);
     }
 
     public void enableTakePictureButton(boolean enabled) {

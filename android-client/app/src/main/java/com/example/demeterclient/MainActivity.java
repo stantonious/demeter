@@ -33,6 +33,8 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.widget.Toolbar;
+import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
@@ -105,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
+    private ImageView ledIndicator;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -122,6 +125,10 @@ public class MainActivity extends AppCompatActivity {
             currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
         }
         setContentView(R.layout.activity_main);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        ledIndicator = findViewById(R.id.led_indicator);
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -594,7 +601,9 @@ public class MainActivity extends AppCompatActivity {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setUploadProgressVisibility(View.VISIBLE);
+                fragment.setUploadProgressBarVisibility(View.VISIBLE);
                 fragment.setUploadProgressText("Upload Progress: 0%");
+                fragment.setUploadProgress(0);
             }
         });
 
@@ -632,6 +641,7 @@ public class MainActivity extends AppCompatActivity {
                         SuggestFragment fragment = getSuggestFragment();
                         if (fragment != null) {
                             fragment.setUploadProgressText("Upload Progress: " + progress + "%");
+                            fragment.setUploadProgress(progress);
                         }
                     });
                     if (progressChar != null) {
@@ -833,36 +843,31 @@ public class MainActivity extends AppCompatActivity {
     private void updateLedIndicator(BleConnectionStatus status) {
         currentStatus = status;
         runOnUiThread(() -> {
-            SettingsFragment fragment = getSettingsFragment();
-            if (fragment != null) {
-                int drawableId;
-                String statusText;
-                switch (status) {
-                    case SCANNING:
-                        drawableId = R.drawable.led_yellow;
-                        statusText = "Scanning...";
-                        break;
-                    case CONNECTING:
-                        drawableId = R.drawable.led_yellow;
-                        statusText = "Connecting...";
-                        break;
-                    case CONNECTED:
-                        drawableId = R.drawable.led_green;
-                        statusText = "Connected";
-                        break;
-                    case ERROR:
-                        drawableId = R.drawable.led_red;
-                        statusText = "Error";
-                        break;
-                    case DISCONNECTED:
-                    default:
-                        drawableId = R.drawable.led_grey;
-                        statusText = "Disconnected";
-                        break;
-                }
-                fragment.updateLedIndicator(drawableId);
-                fragment.setStatusText(statusText);
+            if (ledIndicator == null) return;
+            int drawableId;
+            switch (status) {
+                case SCANNING:
+                    drawableId = R.drawable.led_yellow;
+                    break;
+                case CONNECTING:
+                    drawableId = R.drawable.led_yellow;
+                    break;
+                case CONNECTED:
+                    drawableId = R.drawable.led_green;
+                    SuggestFragment suggestFragment = getSuggestFragment();
+                    if (suggestFragment != null) {
+                        suggestFragment.enableGetSuggestionButton(true);
+                    }
+                    break;
+                case ERROR:
+                    drawableId = R.drawable.led_red;
+                    break;
+                case DISCONNECTED:
+                default:
+                    drawableId = R.drawable.led_grey;
+                    break;
             }
+            ledIndicator.setImageResource(drawableId);
         });
     }
 
