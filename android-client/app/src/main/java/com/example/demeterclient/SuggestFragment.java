@@ -117,4 +117,12 @@ public class SuggestFragment extends Fragment {
     public void setImageSliderVisibility(int visibility) {
         imageSlider.setVisibility(visibility);
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (mainActivity != null && mainActivity.getCurrentConnectionStatus() == MainActivity.BleConnectionStatus.CONNECTED) {
+            getSuggestionButton.setEnabled(true);
+        }
+    }
 }
