@@ -29,20 +29,18 @@ import android.graphics.Matrix;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.Spinner;
-import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.exifinterface.media.ExifInterface;
+import androidx.fragment.app.Fragment;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
+import androidx.navigation.ui.NavigationUI;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-import androidx.viewpager2.widget.ViewPager2;
+
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -63,7 +61,7 @@ import java.util.UUID;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-    private static final long SCAN_PERIOD = 10000; // Stops scanning after 10 seconds.
+    private static final long SCAN_PERIOD = 10000;
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bluetoothLeScanner;
@@ -73,21 +71,9 @@ public class MainActivity extends AppCompatActivity {
     private Handler bleHandler = new Handler(Looper.getMainLooper());
 
     private SwipeRefreshLayout swipeRefreshLayout;
-    private ImageView ledIndicator;
-    private TextView statusTextView;
-    private Button getSuggestionButton;
-    private TextView suggestionTextView;
-    private EditText numSuggestionsEditText;
-    private Spinner plantTypeSpinner;
-    private PlotView livePlotView;
-    private Button takePictureButton;
-    private Button getAugmentedImageButton;
-    private ViewPager2 imageSlider;
-    private ImageSliderAdapter imageSliderAdapter;
-    private List<byte[]> imageList = new ArrayList<>();
-    private byte[] originalImage;
-    private TextView augmentedImageProgressTextView;
-    private TextView uploadProgressTextView;
+
+    public List<byte[]> imageList = new ArrayList<>();
+    public byte[] originalImage;
 
     private ByteArrayOutputStream augmentedImageStream = new ByteArrayOutputStream();
     private int imageReadOffset = 0;
@@ -98,17 +84,16 @@ public class MainActivity extends AppCompatActivity {
     private String currentPhotoPath;
     private static final String KEY_PHOTO_PATH = "com.example.demeterclient.photo_path";
 
-    private static final int MAX_DATA_POINTS = 100;
-    private ArrayList<Float> nHistory = new ArrayList<>();
-    private ArrayList<Float> pHistory = new ArrayList<>();
-    private ArrayList<Float> kHistory = new ArrayList<>();
-    private ArrayList<Float> phHistory = new ArrayList<>();
-    private ArrayList<Float> humidityHistory = new ArrayList<>();
-    private ArrayList<Float> sunHistory = new ArrayList<>();
-    private ArrayList<Float> moistureHistory = new ArrayList<>();
-    private ArrayList<Float> lightHistory = new ArrayList<>();
+    public ArrayList<Float> nHistory = new ArrayList<>();
+    public ArrayList<Float> pHistory = new ArrayList<>();
+    public ArrayList<Float> kHistory = new ArrayList<>();
+    public ArrayList<Float> phHistory = new ArrayList<>();
+    public ArrayList<Float> humidityHistory = new ArrayList<>();
+    public ArrayList<Float> sunHistory = new ArrayList<>();
+    public ArrayList<Float> moistureHistory = new ArrayList<>();
+    public ArrayList<Float> lightHistory = new ArrayList<>();
 
-    private enum BleConnectionStatus {
+    public enum BleConnectionStatus {
         DISCONNECTED,
         SCANNING,
         CONNECTING,
@@ -116,11 +101,16 @@ public class MainActivity extends AppCompatActivity {
         ERROR
     }
 
+    private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
+
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
 
     private Queue<Runnable> writeQueue = new LinkedList<>();
     private boolean isWriting = false;
+
+    private int numSuggestions = 1;
+    private int plantType = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -130,48 +120,12 @@ public class MainActivity extends AppCompatActivity {
         }
         setContentView(R.layout.activity_main);
 
+        BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
+        NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+        NavController navController = navHostFragment.getNavController();
+        NavigationUI.setupWithNavController(navView, navController);
+
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
-        ledIndicator = findViewById(R.id.led_indicator);
-        statusTextView = findViewById(R.id.status_text_view);
-        getSuggestionButton = findViewById(R.id.get_suggestion_button);
-        suggestionTextView = findViewById(R.id.suggestion_text_view);
-        numSuggestionsEditText = findViewById(R.id.num_suggestions_edit_text);
-        plantTypeSpinner = findViewById(R.id.plant_type_spinner);
-        livePlotView = findViewById(R.id.live_plot_view);
-        takePictureButton = findViewById(R.id.take_picture_button);
-        getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
-        imageSlider = findViewById(R.id.image_slider);
-        augmentedImageProgressTextView = findViewById(R.id.augmented_image_progress_text_view);
-        uploadProgressTextView = findViewById(R.id.upload_progress_text_view);
-
-        imageSliderAdapter = new ImageSliderAdapter(this, imageList);
-        imageSlider.setAdapter(imageSliderAdapter);
-
-        takePictureButton.setEnabled(false);
-        getAugmentedImageButton.setEnabled(false);
-
-        // Populate the spinner
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.plant_types, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        plantTypeSpinner.setAdapter(adapter);
-
-        getSuggestionButton.setOnClickListener(v -> {
-            requestSuggestion();
-        });
-
-        takePictureButton.setOnClickListener(v -> {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
-            } else {
-                dispatchTakePictureIntent();
-            }
-        });
-
-        getAugmentedImageButton.setOnClickListener(v -> {
-            fetchAugmentedImage();
-        });
-
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (bluetoothGatt != null) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -191,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter = bluetoothManager.getAdapter();
 
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            statusTextView.setText("Bluetooth is not enabled");
+            Toast.makeText(this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -215,13 +169,13 @@ public class MainActivity extends AppCompatActivity {
                 bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
                 scanLeDevice(true);
             } else {
-                statusTextView.setText("Permissions not granted.");
+                Toast.makeText(this, "Permissions not granted.", Toast.LENGTH_SHORT).show();
             }
         } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 dispatchTakePictureIntent();
             } else {
-                statusTextView.setText("Camera permission denied.");
+                Toast.makeText(this, "Camera permission denied.", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -261,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void dispatchTakePictureIntent() {
+    public void dispatchTakePictureIntent() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
             File photoFile = null;
@@ -284,51 +238,34 @@ public class MainActivity extends AppCompatActivity {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(
-                imageFileName,
-                ".jpg",
-                storageDir
-        );
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         currentPhotoPath = image.getAbsolutePath();
         return image;
     }
 
     private void scanLeDevice(final boolean enable) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "BLUETOOTH_SCAN permission not granted. Cannot scan.");
-            // Optionally, request permissions here or show a Toast.
-            return; // Exit the method entirely.
+            return;
         }
 
         if (enable) {
+            updateLedIndicator(BleConnectionStatus.SCANNING);
             handler.postDelayed(() -> {
                 if (scanning) {
                     scanning = false;
-                    // Permission is already checked, so this is safe.
                     bluetoothLeScanner.stopScan(leScanCallback);
-                    statusTextView.setText("Scan stopped.");
+                    updateLedIndicator(BleConnectionStatus.DISCONNECTED);
                 }
             }, SCAN_PERIOD);
 
             scanning = true;
-            ScanFilter filter = new ScanFilter.Builder()
-                    .setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID))
-                    .build();
+            ScanFilter filter = new ScanFilter.Builder().setServiceUuid(new android.os.ParcelUuid(GattAttributes.DEMETER_SERVICE_UUID)).build();
             List<ScanFilter> filters = Collections.singletonList(filter);
             ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build();
-
-            // Permission is already checked, so this is safe.
             bluetoothLeScanner.startScan(filters, settings, leScanCallback);
-            statusTextView.setText("Scanning for Demeter...");
-            updateLedIndicator(BleConnectionStatus.SCANNING);
         } else {
             scanning = false;
-            // Permission is already checked, so this is safe.
             bluetoothLeScanner.stopScan(leScanCallback);
-            statusTextView.setText("Scan stopped.");
-            if (bluetoothGatt == null) {
-                updateLedIndicator(BleConnectionStatus.DISCONNECTED);
-            }
         }
     }
 
@@ -337,7 +274,6 @@ public class MainActivity extends AppCompatActivity {
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
             BluetoothDevice device = result.getDevice();
-            Log.d(TAG, "Found device: " + device.getAddress());
             connectToDevice(device);
             if (scanning) {
                 scanLeDevice(false);
@@ -349,63 +285,31 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        runOnUiThread(() -> {
-            updateLedIndicator(BleConnectionStatus.CONNECTING);
-            statusTextView.setText("Connecting to " + device.getAddress());
-        });
+        updateLedIndicator(BleConnectionStatus.CONNECTING);
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-
-        // At the top of your MainActivity or inside the gattCallback
-
-
-        // ... inside gattCallback ...@Override
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
-                Log.d(TAG, "Connected to GATT server. Waiting before discovering services...");
-                runOnUiThread(() -> {
-                    updateLedIndicator(BleConnectionStatus.CONNECTED);
-                    statusTextView.setText("Connected");
-                });
-
-                // FIX: Introduce a delay before calling discoverServices.
-                // This call happens on the background binder thread, which is correct.
-                // We use a handler to schedule it.
+                updateLedIndicator(BleConnectionStatus.CONNECTED);
                 bleHandler.postDelayed(() -> {
                     if (bluetoothGatt != null) {
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                            Log.e(TAG, "BLUETOOTH_CONNECT permission missing for discoverServices");
                             return;
                         }
-                        Log.d(TAG, "Starting service discovery...");
-                        boolean success = bluetoothGatt.discoverServices();
-                        if (!success) {
-                            Log.e(TAG, "Service discovery failed to initiate.");
-                        }
+                        bluetoothGatt.discoverServices();
                     }
-                }, 600); // 600ms is a safe delay for most devices.
-
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Log.d(TAG, "Disconnected from GATT server.");
-                // Your disconnect logic...
+                }, 600);
             } else {
-                Log.e(TAG, "onConnectionStateChange received error status: " + status);
-                // Your error handling logic...
+                updateLedIndicator(BleConnectionStatus.DISCONNECTED);
             }
         }
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
-            UUID characteristicUuid = descriptor.getCharacteristic().getUuid();
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.d(TAG, "Descriptor write successful for: " + characteristicUuid);
-            } else {
-                Log.e(TAG, "Descriptor write failed for: " + characteristicUuid + " with status: " + status);
-            }
             if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
                 currentSubscriptionIndex++;
                 subscribeNextCharacteristic(gatt);
@@ -414,14 +318,12 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.d(TAG, "Successfully wrote to characteristic " + characteristic.getUuid());
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
                     readLlmChunk();
                 } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_REQUEST)) {
                     readAugmentedImageChunk();
                 }
             } else {
-                Log.e(TAG, "Failed to write to characteristic " + characteristic.getUuid() + " status: " + status);
                 writeQueue.clear();
             }
             isWriting = false;
@@ -430,65 +332,12 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                if (characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
-                    byte[] data = characteristic.getValue();
-                    if (data != null && data.length > 0) {
-                        suggestionBuilder.append(new String(data));
-                        if (data.length < 225) {
-                            runOnUiThread(() -> {
-                                suggestionTextView.setText("Suggestion: " + suggestionBuilder.toString());
-                                takePictureButton.setEnabled(true);
-                                getAugmentedImageButton.setEnabled(false);
-                                Toast.makeText(MainActivity.this, "Suggestion received. You can now take a picture.", Toast.LENGTH_LONG).show();
-                            });
-                        } else {
-                            llmOffset += data.length;
-                            requestLlmChunk();
-                        }
-                    }
-                } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE)) {
-                    byte[] data = characteristic.getValue();
-                    if (data != null && data.length > 0) {
-                        try {
-                            augmentedImageStream.write(data);
-                            if (data.length < 512) { // Last chunk
-                                byte[] augmentedImage = augmentedImageStream.toByteArray();
-                                runOnUiThread(() -> {
-                                    imageList.clear();
-                                    if (originalImage != null) {
-                                        imageList.add(originalImage);
-                                    }
-                                    imageList.add(augmentedImage);
-                                    imageSliderAdapter.notifyDataSetChanged();
-                                    imageSlider.setVisibility(View.VISIBLE);
-                                    augmentedImageProgressTextView.setVisibility(View.GONE);
-                                    Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
-                                });
-                            } else {
-                                imageReadOffset += data.length;
-                                requestAugmentedImageChunk();
-                            }
-                        } catch (IOException e) {
-                            Log.e(TAG, "Error writing to augmented image stream", e);
-                        }
-                    } else { // EOT
-                        byte[] augmentedImage = augmentedImageStream.toByteArray();
-                        if (augmentedImage.length > 0) {
-                            runOnUiThread(() -> {
-                                imageList.clear();
-                                if (originalImage != null) {
-                                    imageList.add(originalImage);
-                                }
-                                imageList.add(augmentedImage);
-                                imageSliderAdapter.notifyDataSetChanged();
-                                imageSlider.setVisibility(View.VISIBLE);
-                                augmentedImageProgressTextView.setVisibility(View.GONE);
-                                Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
-                            });
-                        }
-                    }
-                }
+            if (status != BluetoothGatt.GATT_SUCCESS) return;
+
+            if (characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
+                handleLlmRead(characteristic.getValue());
+            } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE)) {
+                handleAugmentedImageRead(characteristic.getValue());
             }
         }
 
@@ -502,94 +351,43 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, android.bluetooth.BluetoothGattCharacteristic characteristic) {
             if (characteristic.getUuid().equals(GattAttributes.UUID_LLM_STATUS)) {
-                int llmStatus = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                runOnUiThread(() -> {
-                    if (llmStatus == 1) {
-                        suggestionTextView.setText("Suggestion: Generating...");
-                    } else if (llmStatus == 2) {
-                        fetchLlmResponse();
-                    }
-                });
+                handleLlmStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_STATUS)) {
-                int imageStatus = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                runOnUiThread(() -> {
-                    switch (imageStatus) {
-                        case 1: // Processing
-                            Toast.makeText(MainActivity.this, "Image received, server is processing...", Toast.LENGTH_SHORT).show();
-                            getAugmentedImageButton.setEnabled(false);
-                            break;
-                        case 2: // Success
-                            Toast.makeText(MainActivity.this, "Image processed. You can now get the augmented image.", Toast.LENGTH_LONG).show();
-                            getAugmentedImageButton.setEnabled(true);
-                            break;
-                        case 3: // Error
-                            Toast.makeText(MainActivity.this, "Server failed to process image.", Toast.LENGTH_LONG).show();
-                            getAugmentedImageButton.setEnabled(false);
-                            break;
-                    }
-                });
+                handleImageStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS)) {
-                int progress = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                runOnUiThread(() -> {
-                    if (progress > 0 && progress < 100) {
-                        augmentedImageProgressTextView.setVisibility(View.VISIBLE);
-                        augmentedImageProgressTextView.setText("Download Progress: " + progress + "%");
-                    } else {
-                        augmentedImageProgressTextView.setVisibility(View.GONE);
-                    }
-                });
+                handleAugmentedImageProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else {
-                updateUI(characteristic);
+                updatePlotData(characteristic);
             }
         }
     };
 
-    private void requestSuggestion() {
+    public void requestSuggestion() {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) {
-            Log.e(TAG, "Demeter service not found");
-            return;
-        }
+        if (service == null) return;
 
         writeQueue.clear();
         isWriting = false;
 
         BluetoothGattCharacteristic numSuggestionsChar = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
-        if (numSuggestionsChar != null) {
-            String numSuggestionsStr = numSuggestionsEditText.getText().toString();
-            int numSuggestions = 1;
-            if (!numSuggestionsStr.isEmpty()) {
-                try {
-                    numSuggestions = Integer.parseInt(numSuggestionsStr);
-                } catch (NumberFormatException e) {
-                    Log.e(TAG, "Invalid number format for suggestions", e);
-                }
-            }
-            byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
-            writeCharacteristicToQueue(numSuggestionsChar, numValue);
-        } else {
-            Log.e(TAG, "Num Suggestions characteristic not found");
-        }
+        byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
+        writeCharacteristicToQueue(numSuggestionsChar, numValue);
 
         BluetoothGattCharacteristic plantTypeChar = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
-        if (plantTypeChar != null) {
-            int plantTypeIndex = plantTypeSpinner.getSelectedItemPosition();
-            byte[] plantTypeValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantTypeIndex).array();
-            writeCharacteristicToQueue(plantTypeChar, plantTypeValue);
-        } else {
-            Log.e(TAG, "Plant Type characteristic not found");
-        }
+        byte[] plantTypeValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantType).array();
+        writeCharacteristicToQueue(plantTypeChar, plantTypeValue);
 
         BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
-        if (suggestChar != null) {
-            byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
-            writeCharacteristicToQueue(suggestChar, suggestValue);
-        } else {
-            Log.e(TAG, "Suggest characteristic not found");
-        }
+        byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
+        writeCharacteristicToQueue(suggestChar, suggestValue);
 
-        runOnUiThread(() -> suggestionTextView.setText("Suggestion: Requesting..."));
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.setSuggestionText("Suggestion: Requesting...");
+            }
+        });
     }
 
     private void writeCharacteristicToQueue(BluetoothGattCharacteristic characteristic, byte[] value) {
@@ -603,12 +401,10 @@ public class MainActivity extends AppCompatActivity {
                 }
                 boolean success = bluetoothGatt.writeCharacteristic(characteristic);
                 if (!success) {
-                    Log.e(TAG, "Failed to initiate write for characteristic " + characteristic.getUuid());
                     isWriting = false;
                     processWriteQueue();
                 }
             } else {
-                Log.e(TAG, "GATT or characteristic is null, skipping write.");
                 isWriting = false;
                 processWriteQueue();
             }
@@ -617,9 +413,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void processWriteQueue() {
-        if (isWriting || writeQueue.isEmpty()) {
-            return;
-        }
+        if (isWriting || writeQueue.isEmpty()) return;
         isWriting = true;
         Runnable runnable = writeQueue.poll();
         if (runnable != null) {
@@ -665,16 +459,10 @@ public class MainActivity extends AppCompatActivity {
     private int currentSubscriptionIndex = 0;
     private void subscribeToCharacteristics(BluetoothGatt gatt) {
         characteristicsToSubscribe = List.of(
-                GattAttributes.UUID_K,
-                GattAttributes.UUID_P,
-                GattAttributes.UUID_N,
-                GattAttributes.UUID_PH,
-                GattAttributes.UUID_HUMID,
-                GattAttributes.UUID_SUN,
-                GattAttributes.UUID_MOISTURE,
-                GattAttributes.UUID_LIGHT,
-                GattAttributes.UUID_LLM_STATUS,
-                GattAttributes.UUID_IMAGE_STATUS,
+                GattAttributes.UUID_K, GattAttributes.UUID_P, GattAttributes.UUID_N,
+                GattAttributes.UUID_PH, GattAttributes.UUID_HUMID, GattAttributes.UUID_SUN,
+                GattAttributes.UUID_MOISTURE, GattAttributes.UUID_LIGHT,
+                GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS,
                 GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS
         );
         currentSubscriptionIndex = 0;
@@ -685,130 +473,95 @@ public class MainActivity extends AppCompatActivity {
         if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
             UUID characteristicUuid = characteristicsToSubscribe.get(currentSubscriptionIndex);
             setCharacteristicNotificationInternal(gatt, characteristicUuid, true);
-        } else {
-            Log.d(TAG, "All characteristics subscribed.");
         }
     }
 
     private void setCharacteristicNotificationInternal(BluetoothGatt gatt, UUID characteristicUuid, boolean enabled) {
         BluetoothGattService service = gatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) {
-            Log.e(TAG, "Service not found for " + characteristicUuid);
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
         BluetoothGattCharacteristic characteristic = service.getCharacteristic(characteristicUuid);
         if (characteristic == null) {
-            Log.e(TAG, "Characteristic not found: " + characteristicUuid);
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            Log.e(TAG, "BLUETOOTH_CONNECT permission missing for setCharacteristicNotificationInternal");
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
             return;
         }
-        boolean notificationSet = gatt.setCharacteristicNotification(characteristic, enabled);
-        if (!notificationSet) {
-            Log.e(TAG, "setCharacteristicNotification failed for " + characteristicUuid);
-            currentSubscriptionIndex++;
-            subscribeNextCharacteristic(gatt);
-            return;
-        }
+        gatt.setCharacteristicNotification(characteristic, enabled);
         UUID cccdUuid = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(cccdUuid);
         if (descriptor != null) {
             byte[] value = enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE;
             descriptor.setValue(value);
-            if (!gatt.writeDescriptor(descriptor)) {
-                Log.e(TAG, "writeDescriptor failed for " + characteristicUuid);
-            }
+            gatt.writeDescriptor(descriptor);
         } else {
-            Log.w(TAG, "CCCD descriptor not found for " + characteristicUuid);
             currentSubscriptionIndex++;
             subscribeNextCharacteristic(gatt);
         }
     }
 
-    private void updateUI(android.bluetooth.BluetoothGattCharacteristic characteristic) {
+    private void updatePlotData(android.bluetooth.BluetoothGattCharacteristic characteristic) {
         UUID uuid = characteristic.getUuid();
         byte[] data = characteristic.getValue();
         if (data == null || data.length < 4) return;
         final float value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
 
         runOnUiThread(() -> {
-            if (uuid.equals(GattAttributes.UUID_N)) {
-                addHistory(nHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_P)) {
-                addHistory(pHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_K)) {
-                addHistory(kHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_PH)) {
-                addHistory(phHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_HUMID)) {
-                addHistory(humidityHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_SUN)) {
-                addHistory(sunHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_MOISTURE)) {
-                addHistory(moistureHistory, value);
-            } else if (uuid.equals(GattAttributes.UUID_LIGHT)) {
-                addHistory(lightHistory, value);
-            }
+            if (uuid.equals(GattAttributes.UUID_N)) addHistory(nHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_P)) addHistory(pHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_K)) addHistory(kHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_PH)) addHistory(phHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_HUMID)) addHistory(humidityHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_SUN)) addHistory(sunHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_MOISTURE)) addHistory(moistureHistory, value);
+            else if (uuid.equals(GattAttributes.UUID_LIGHT)) addHistory(lightHistory, value);
 
-            HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
-            historyData.put("N", nHistory);
-            historyData.put("P", pHistory);
-            historyData.put("K", kHistory);
-            historyData.put("pH", phHistory);
-            historyData.put("Humidity", humidityHistory);
-            historyData.put("Sun", sunHistory);
-            historyData.put("Moisture", moistureHistory);
-            historyData.put("Light", lightHistory);
-            livePlotView.setData(historyData);
+            StatsFragment fragment = getStatsFragment();
+            if (fragment != null) {
+                HashMap<String, ArrayList<Float>> historyData = new HashMap<>();
+                historyData.put("N", nHistory);
+                historyData.put("P", pHistory);
+                historyData.put("K", kHistory);
+                historyData.put("pH", phHistory);
+                historyData.put("Humidity", humidityHistory);
+                historyData.put("Sun", sunHistory);
+                historyData.put("Moisture", moistureHistory);
+                historyData.put("Light", lightHistory);
+                fragment.updatePlot(historyData);
+            }
         });
     }
 
     private void addHistory(ArrayList<Float> history, float value) {
         history.add(value);
-        if (history.size() > MAX_DATA_POINTS) {
+        if (history.size() > 100) {
             history.remove(0);
         }
     }
 
-    private void sendImage(Uri imageUri) {
-        if (bluetoothGatt == null || imageUri == null) {
-            Log.e(TAG, "Bluetooth not connected or image URI is null.");
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Bluetooth not connected.", Toast.LENGTH_SHORT).show());
-            return;
-        }
-
+    public void sendImage(Uri imageUri) {
+        if (bluetoothGatt == null || imageUri == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) {
-            Log.e(TAG, "Demeter service not found");
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Service not found.", Toast.LENGTH_SHORT).show());
-            return;
-        }
-
+        if (service == null) return;
         final BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
-        if (imageChar == null) {
-            Log.e(TAG, "Image characteristic not found");
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: Characteristic not found.", Toast.LENGTH_SHORT).show());
-            return;
-        }
-
+        if (imageChar == null) return;
         final BluetoothGattCharacteristic progressChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS);
-        if (progressChar == null) {
-            Log.e(TAG, "Image Upload Progress characteristic not found");
-        }
 
         runOnUiThread(() -> {
             Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show();
-            uploadProgressTextView.setVisibility(View.VISIBLE);
-            uploadProgressTextView.setText("Upload Progress: 0%");
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.setUploadProgressVisibility(View.VISIBLE);
+                fragment.setUploadProgressText("Upload Progress: 0%");
+            }
         });
 
         new Thread(() -> {
@@ -816,21 +569,14 @@ public class MainActivity extends AppCompatActivity {
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
 
-                // Rotate bitmap according to EXIF data
                 InputStream exifInputStream = getContentResolver().openInputStream(imageUri);
                 ExifInterface exifInterface = new ExifInterface(exifInputStream);
                 int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
                 Matrix matrix = new Matrix();
                 switch (orientation) {
-                    case ExifInterface.ORIENTATION_ROTATE_90:
-                        matrix.postRotate(90);
-                        break;
-                    case ExifInterface.ORIENTATION_ROTATE_180:
-                        matrix.postRotate(180);
-                        break;
-                    case ExifInterface.ORIENTATION_ROTATE_270:
-                        matrix.postRotate(270);
-                        break;
+                    case ExifInterface.ORIENTATION_ROTATE_90: matrix.postRotate(90); break;
+                    case ExifInterface.ORIENTATION_ROTATE_180: matrix.postRotate(180); break;
+                    case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
                 }
                 Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
                 Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 512, 512, true);
@@ -838,92 +584,66 @@ public class MainActivity extends AppCompatActivity {
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
                 byte[] imageData = byteStream.toByteArray();
-                originalImage = imageData; // Save original image
+                originalImage = imageData;
                 final int totalSize = imageData.length;
-                Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
-
 
                 int chunkSize = 256;
                 for (int i = 0; i < totalSize; i += chunkSize) {
                     int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
-                    Log.d(TAG, "Queuing chunk " + (i / chunkSize + 1) + ", size: " + chunk.length);
                     writeCharacteristicToQueue(imageChar, chunk);
 
                     final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
-                    runOnUiThread(() -> uploadProgressTextView.setText("Upload Progress: " + progress + "%"));
+                    runOnUiThread(() -> {
+                        SuggestFragment fragment = getSuggestFragment();
+                        if (fragment != null) {
+                            fragment.setUploadProgressText("Upload Progress: " + progress + "%");
+                        }
+                    });
                     if (progressChar != null) {
                         byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
                         writeCharacteristicToQueue(progressChar, progressValue);
                     }
                 }
-
-                // Send End-Of-Transmission signal
-                Log.d(TAG, "Queuing EOT signal.");
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
-
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
-                    uploadProgressTextView.setVisibility(View.GONE);
+                    SuggestFragment fragment = getSuggestFragment();
+                    if (fragment != null) {
+                        fragment.setUploadProgressVisibility(View.GONE);
+                    }
                 });
-
             } catch (IOException e) {
-                Log.e(TAG, "Error reading image file", e);
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    uploadProgressTextView.setVisibility(View.GONE);
-                });
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
         }).start();
     }
 
-    private void updateLedIndicator(BleConnectionStatus status) {
-        int drawableId;
-        switch (status) {
-            case SCANNING:
-            case CONNECTING:
-                drawableId = R.drawable.led_yellow;
-                break;
-            case CONNECTED:
-                drawableId = R.drawable.led_green;
-                break;
-            case ERROR:
-                drawableId = R.drawable.led_red;
-                break;
-            case DISCONNECTED:
-            default:
-                drawableId = R.drawable.led_grey;
-                break;
-        }
-        runOnUiThread(() -> ledIndicator.setImageDrawable(ContextCompat.getDrawable(MainActivity.this, drawableId)));
-    }
-
-    private void fetchAugmentedImage() {
+    public void fetchAugmentedImage() {
         if (bluetoothGatt == null) {
             Toast.makeText(this, "Bluetooth not connected", Toast.LENGTH_SHORT).show();
             return;
         }
         augmentedImageStream.reset();
         imageReadOffset = 0;
-        imageSlider.setVisibility(View.GONE);
-        augmentedImageProgressTextView.setVisibility(View.VISIBLE);
-        augmentedImageProgressTextView.setText("Download Progress: 0%");
-        Toast.makeText(this, "Generating and fetching augmented image... Please wait.", Toast.LENGTH_LONG).show();
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.setImageSliderVisibility(View.GONE);
+                fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                fragment.setAugmentedImageProgressText("Download Progress: 0%");
+            }
+            Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
+        });
         requestAugmentedImageChunk();
     }
 
     private void requestAugmentedImageChunk() {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) {
-            Log.e(TAG, "Demeter service not found for augmented image request");
-            return;
-        }
+        if (service == null) return;
         BluetoothGattCharacteristic requestChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_REQUEST);
-        if (requestChar == null) {
-            Log.e(TAG, "Image Request characteristic not found");
-            return;
-        }
+        if (requestChar == null) return;
         byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(imageReadOffset).array();
         writeCharacteristicToQueue(requestChar, value);
     }
@@ -931,18 +651,197 @@ public class MainActivity extends AppCompatActivity {
     private void readAugmentedImageChunk() {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) {
-            Log.e(TAG, "Demeter service not found for augmented image read");
-            return;
-        }
+        if (service == null) return;
         BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_AUGMENTED_IMAGE);
-        if (imageChar == null) {
-            Log.e(TAG, "Augmented Image characteristic not found");
-            return;
-        }
+        if (imageChar == null) return;
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
         bluetoothGatt.readCharacteristic(imageChar);
+    }
+
+    private Fragment getCurrentFragment() {
+        NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
+        if (navHostFragment != null && navHostFragment.getChildFragmentManager().getFragments().size() > 0) {
+            return navHostFragment.getChildFragmentManager().getFragments().get(0);
+        }
+        return null;
+    }
+
+    private SuggestFragment getSuggestFragment() {
+        Fragment currentFragment = getCurrentFragment();
+        if (currentFragment instanceof SuggestFragment) {
+            return (SuggestFragment) currentFragment;
+        }
+        return null;
+    }
+
+    private SettingsFragment getSettingsFragment() {
+        Fragment currentFragment = getCurrentFragment();
+        if (currentFragment instanceof SettingsFragment) {
+            return (SettingsFragment) currentFragment;
+        }
+        return null;
+    }
+
+    private StatsFragment getStatsFragment() {
+        Fragment currentFragment = getCurrentFragment();
+        if (currentFragment instanceof StatsFragment) {
+            return (StatsFragment) currentFragment;
+        }
+        return null;
+    }
+
+    private void handleLlmRead(byte[] data) {
+        if (data != null && data.length > 0) {
+            suggestionBuilder.append(new String(data));
+            if (data.length < 225) { // Assuming this indicates the last chunk
+                runOnUiThread(() -> {
+                    SuggestFragment fragment = getSuggestFragment();
+                    if (fragment != null) {
+                        fragment.setSuggestionText("Suggestion: " + suggestionBuilder.toString());
+                        fragment.enableTakePictureButton(true);
+                        fragment.enableGetAugmentedImageButton(false);
+                    }
+                    Toast.makeText(MainActivity.this, "Suggestion received.", Toast.LENGTH_LONG).show();
+                });
+            } else {
+                llmOffset += data.length;
+                requestLlmChunk();
+            }
+        }
+    }
+
+    private void handleAugmentedImageRead(byte[] data) {
+        try {
+            if (data != null && data.length > 0) {
+                augmentedImageStream.write(data);
+                if (data.length < 512) { // Last chunk heuristic
+                    finalizeAugmentedImage();
+                } else {
+                    imageReadOffset += data.length;
+                    requestAugmentedImageChunk();
+                }
+            } else { // EOT signal or empty packet
+                finalizeAugmentedImage();
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error writing to augmented image stream", e);
+        }
+    }
+
+    private void finalizeAugmentedImage() {
+        byte[] augmentedImage = augmentedImageStream.toByteArray();
+        if (augmentedImage.length == 0) return;
+        runOnUiThread(() -> {
+            imageList.clear();
+            if (originalImage != null) {
+                imageList.add(originalImage);
+            }
+            imageList.add(augmentedImage);
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.updateImageSlider();
+                fragment.setImageSliderVisibility(View.VISIBLE);
+                fragment.setAugmentedImageProgressVisibility(View.GONE);
+            }
+            Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void handleLlmStatusChange(int llmStatus) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                if (llmStatus == 1) {
+                    fragment.setSuggestionText("Suggestion: Generating...");
+                } else if (llmStatus == 2) {
+                    fetchLlmResponse();
+                }
+            }
+        });
+    }
+
+    private void handleImageStatusChange(int imageStatus) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            switch (imageStatus) {
+                case 1: // Processing
+                    Toast.makeText(MainActivity.this, "Image received, server is processing...", Toast.LENGTH_SHORT).show();
+                    if (fragment != null) fragment.enableGetAugmentedImageButton(false);
+                    break;
+                case 2: // Success
+                    Toast.makeText(MainActivity.this, "Image processed. You can now get the augmented image.", Toast.LENGTH_LONG).show();
+                    if (fragment != null) fragment.enableGetAugmentedImageButton(true);
+                    break;
+                case 3: // Error
+                    Toast.makeText(MainActivity.this, "Server failed to process image.", Toast.LENGTH_LONG).show();
+                    if (fragment != null) fragment.enableGetAugmentedImageButton(false);
+                    break;
+            }
+        });
+    }
+
+    private void handleAugmentedImageProgressChange(int progress) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                if (progress > 0 && progress < 100) {
+                    fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                    fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
+                } else {
+                    fragment.setAugmentedImageProgressVisibility(View.GONE);
+                }
+            }
+        });
+    }
+
+    private void updateLedIndicator(BleConnectionStatus status) {
+        currentStatus = status;
+        runOnUiThread(() -> {
+            SettingsFragment fragment = getSettingsFragment();
+            if (fragment != null) {
+                int drawableId;
+                String statusText;
+                switch (status) {
+                    case SCANNING:
+                        drawableId = R.drawable.led_yellow;
+                        statusText = "Scanning...";
+                        break;
+                    case CONNECTING:
+                        drawableId = R.drawable.led_yellow;
+                        statusText = "Connecting...";
+                        break;
+                    case CONNECTED:
+                        drawableId = R.drawable.led_green;
+                        statusText = "Connected";
+                        break;
+                    case ERROR:
+                        drawableId = R.drawable.led_red;
+                        statusText = "Error";
+                        break;
+                    case DISCONNECTED:
+                    default:
+                        drawableId = R.drawable.led_grey;
+                        statusText = "Disconnected";
+                        break;
+                }
+                fragment.updateLedIndicator(drawableId);
+                fragment.setStatusText(statusText);
+            }
+        });
+    }
+
+    public BleConnectionStatus getCurrentConnectionStatus() {
+        return currentStatus;
+    }
+
+    // Setters for settings
+    public void setNumSuggestions(int numSuggestions) {
+        this.numSuggestions = numSuggestions;
+    }
+
+    public void setPlantType(int plantType) {
+        this.plantType = plantType;
     }
 }
