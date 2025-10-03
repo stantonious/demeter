@@ -30,6 +30,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="Number of Suggestions (e.g., 3)"
+        android:text="1"
         android:inputType="number" />
 
     <TextView
@@ -57,6 +58,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:hint="Augment Size (5-200)"
+        android:text="20"
         android:inputType="number" />
 
 </LinearLayout>

@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
     private int numSuggestions = 1;
     private int plantType = 0;
-    private int augmentSize = 100;
+    private int augmentSize = 20;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -397,6 +397,11 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                // Sync settings with the server on connection
+                setNumSuggestions(numSuggestions);
+                setPlantType(plantType);
+                setAugmentSize(augmentSize);
+
                 subscribeToCharacteristics(gatt);
             }
         }
@@ -903,10 +908,26 @@ public class MainActivity extends AppCompatActivity {
 
     public void setNumSuggestions(int numSuggestions) {
         this.numSuggestions = numSuggestions;
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
+        if (characteristic != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
+            writeCharacteristicToQueue(characteristic, value);
+        }
     }
 
     public void setPlantType(int plantType) {
         this.plantType = plantType;
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
+        if (characteristic != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantType).array();
+            writeCharacteristicToQueue(characteristic, value);
+        }
     }
 
     public void setAugmentSize(int size) {
