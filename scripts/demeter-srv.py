@@ -657,6 +657,39 @@ class ImageUploadProgressChar(dbus.service.Object):
                 f"Received invalid byte array length for progress: {len(value)}")
 
 
+class GenericIntWritableChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, name="Integer"):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0
+        self.name = name
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            print(f"Set {self.name} to: {self.value}")
+        else:
+            print(
+                f"Received invalid byte array length for {self.name}: {len(value)}")
+
+
 class PChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
@@ -1647,6 +1680,14 @@ def main():
     image_upload_progress_char = ImageUploadProgressChar(bus, 20,
                                                          "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
     service.characteristics.append(image_upload_progress_char)
+
+    aoi_x_char = GenericIntWritableChar(bus, 21,
+                                        "12345678-1234-5678-1234-56789abcdff6", ["write"], service, name="AOI X")
+    service.characteristics.append(aoi_x_char)
+
+    aoi_y_char = GenericIntWritableChar(bus, 22,
+                                        "12345678-1234-5678-1234-56789abcdff7", ["write"], service, name="AOI Y")
+    service.characteristics.append(aoi_y_char)
 
     ad = Advertisement(bus, 0, SERVICE_UUID)
 

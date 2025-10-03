@@ -4,9 +4,11 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -46,5 +48,20 @@ public class ImageFragment extends Fragment {
             Bitmap bitmap = BitmapFactory.decodeByteArray(image, 0, image.length);
             imageView.setImageBitmap(bitmap);
         }
+
+        imageView.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                int x = (int) event.getX();
+                int y = (int) event.getY();
+
+                MainActivity mainActivity = (MainActivity) getActivity();
+                if (mainActivity != null) {
+                    mainActivity.writeAoiCoordinates(x, y);
+                    Toast.makeText(getContext(), "AOI sent: (" + x + ", " + y + ")", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            }
+            return false;
+        });
     }
 }
