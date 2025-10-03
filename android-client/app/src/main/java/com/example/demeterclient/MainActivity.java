@@ -30,6 +30,9 @@ import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
@@ -198,6 +201,9 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_PREVIEW_IMAGE:
                 if (data != null) {
                     String imageUriString = data.getStringExtra("image_uri");
+                    int aoiX = data.getIntExtra("aoi_x", 0);
+                    int aoiY = data.getIntExtra("aoi_y", 0);
+                    writeAoiCoordinates(aoiX, aoiY);
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
                         sendImage(imageUri);
@@ -215,6 +221,34 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private final ActivityResultLauncher<Intent> takePictureLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Intent data = result.getData();
+                    String imageUriString = data.getStringExtra("image_uri");
+
+                    // *** THIS IS THE NEW PART ***
+                    // Check if AOI coordinates were sent back
+                    if (data.hasExtra("aoi_x") && data.hasExtra("aoi_y")) {
+                        int aoiX = data.getIntExtra("aoi_x", 0);
+                        int aoiY = data.getIntExtra("aoi_y", 0);
+
+                        // Now you can call your method with the coordinates
+                        writeAoiCoordinates(aoiX, aoiY);
+                    }
+                    // *** END OF NEW PART ***
+
+                    if (imageUriString != null) {
+                        Uri imageUri = Uri.parse(imageUriString);
+                        // Now you can use the final image URI, for example, to send it via BLE
+                        // sendImageViaBle(imageUri);
+                        Log.d(TAG, "Final image URI received: " + imageUri.toString());
+                    }
+                }
+            }
+    );
+    ;
     public void dispatchTakePictureIntent() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
         if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -587,7 +621,7 @@ public class MainActivity extends AppCompatActivity {
                 originalImage = imageData;
                 final int totalSize = imageData.length;
 
-                int chunkSize = 256;
+                int chunkSize = 500;
                 for (int i = 0; i < totalSize; i += chunkSize) {
                     int end = Math.min(totalSize, i + chunkSize);
                     byte[] chunk = Arrays.copyOfRange(imageData, i, end);
