@@ -359,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
                     if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                         return;
                     }
-                    gatt.discoverServices();
+                    runOnUiThread(gatt::discoverServices);
                 } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                     Log.d(TAG, "Disconnected from GATT server.");
                     runOnUiThread(() -> {
