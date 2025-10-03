@@ -363,9 +363,15 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
-            if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
-                currentSubscriptionIndex++;
+            currentSubscriptionIndex++;
+            if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
                 subscribeNextCharacteristic(gatt);
+            } else {
+                // All subscriptions are complete, now it's safe to write initial settings.
+                Log.d(TAG, "All characteristics subscribed. Writing initial settings.");
+                setNumSuggestions(numSuggestions);
+                setPlantType(plantType);
+                setAugmentSize(augmentSize);
             }
         }
         @Override
@@ -397,11 +403,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                // Sync settings with the server on connection
-                setNumSuggestions(numSuggestions);
-                setPlantType(plantType);
-                setAugmentSize(augmentSize);
-
                 subscribeToCharacteristics(gatt);
             }
         }
@@ -862,7 +863,7 @@ public class MainActivity extends AppCompatActivity {
                     fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
-                    fragment.setAugmentedImageProgress(progress);
+                    fragment.setUploadProgress(progress);
                 } else {
                     fragment.setAugmentedImageProgressVisibility(View.GONE);
                     fragment.setAugmentedImageProgressBarVisibility(View.GONE);
