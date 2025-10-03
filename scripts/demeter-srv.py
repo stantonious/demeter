@@ -64,6 +64,8 @@ g_num_suggestions = 0
 g_augmented_image_data = bytearray()
 g_suggested_plant_name = ""
 g_generated_plant_image_data = bytearray()
+g_aoi_x=0
+g_aoi_y=0
 
 
 class Characteristic(dbus.service.Object):
@@ -657,7 +659,7 @@ class ImageUploadProgressChar(dbus.service.Object):
                 f"Received invalid byte array length for progress: {len(value)}")
 
 
-class GenericIntWritableChar(dbus.service.Object):
+class AoiXChar(dbus.service.Object):
     def __init__(self, bus, index, uuid, flags, service, name="Integer"):
         self.path = service.path + f"/char{index}"
         self.bus = bus
@@ -682,8 +684,44 @@ class GenericIntWritableChar(dbus.service.Object):
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
+        global g_aoi_x
         if len(value) == 4:
             self.value = struct.unpack('<i', bytes(value))[0]
+            g_aoi_x = self.value
+            print(f"Set {self.name} to: {self.value}")
+        else:
+            print(
+                f"Received invalid byte array length for {self.name}: {len(value)}")
+
+class AoiYChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, name="Integer"):
+        self.path = service.path + f"/char{index}"
+        self.bus = bus
+        self.uuid = uuid
+        self.flags = flags
+        self.service = service
+        self.value = 0
+        self.name = name
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def get_properties(self):
+        return {
+            "org.bluez.GattCharacteristic1": {
+                "UUID": self.uuid,
+                "Service": self.service.get_path(),
+                "Flags": self.flags,
+            }
+        }
+
+    def get_path(self):
+        return dbus.ObjectPath(self.path)
+
+    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
+    def WriteValue(self, value, options):
+        global g_aoi_y
+        if len(value) == 4:
+            self.value = struct.unpack('<i', bytes(value))[0]
+            g_aoi_y = self.value
             print(f"Set {self.name} to: {self.value}")
         else:
             print(
@@ -993,7 +1031,8 @@ def generate_chatgpt_response(prompt, llm_status_char):
 
 
 def generate_dalle_image_inpaint(image, plant_name):
-    global g_generated_plant_image_data
+    global g_generated_plant_image_data,g_aoi_x,g_aoi_y
+    mask_size = 100
     print('plant name', plant_name)
     if not plant_name:
         print("No plant name available to generate an image.")
@@ -1005,20 +1044,19 @@ def generate_dalle_image_inpaint(image, plant_name):
         mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
         draw = ImageDraw.Draw(mask)
         # (x1,y1,x2,y2)
-        draw.rectangle((100, 100, 200, 200), fill=(0, 0, 0, 0))
+        print (f'========== Masking {g_aoi_x} {g_aoi_y} {mask.size}')
+        draw.rectangle((g_aoi_x,g_aoi_y,g_aoi_x+mask_size, g_aoi_y+mask_size), fill=(0, 0, 0, 0))
         img_bytes = io.BytesIO()
         image.convert("RGBA").save('./img.png', format="PNG")
         img_bytes.seek(0)
-        mask_bytes = io.BytesIO()
         mask.convert("RGBA").save('./mask.png', format="PNG")
-        mask_bytes.seek(0)
 
         with open('./img.png', 'rb') as image_f, open('./mask.png', 'rb') as mask_f:
             response = client.images.edit(
                 model="dall-e-2",
                 image=image_f,
                 mask=mask_f,
-                prompt=f"A clear, high-quality image of a fully grown {plant_name} {g_plant_type} that is firmly planted and part of the natural surroundings.  The view point should be from 6 ft. above and at a 20 degree angle.",
+                prompt=f"A clear, high-quality image of a fully grown {plant_name} {g_plant_type} plant that is firmly planted and part of the natural surroundings.  The view point should be from 6 ft. above and at a 20 degree angle.",
                 n=1,  # Number of images to generate
                 size="512x512"  # Image resolution
             )
@@ -1032,6 +1070,7 @@ def generate_dalle_image_inpaint(image, plant_name):
                 image_data = bytearray()
                 for chunk in r.iter_bytes():
                     image_data.extend(chunk)
+
                 g_generated_plant_image_data = image_data
                 print("Successfully downloaded generated image.")
 
@@ -1681,11 +1720,11 @@ def main():
                                                          "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
     service.characteristics.append(image_upload_progress_char)
 
-    aoi_x_char = GenericIntWritableChar(bus, 21,
+    aoi_x_char = AoiXChar(bus, 21,
                                         "12345678-1234-5678-1234-56789abcdff6", ["write"], service, name="AOI X")
     service.characteristics.append(aoi_x_char)
 
-    aoi_y_char = GenericIntWritableChar(bus, 22,
+    aoi_y_char = AoiYChar(bus, 22,
                                         "12345678-1234-5678-1234-56789abcdff7", ["write"], service, name="AOI Y")
     service.characteristics.append(aoi_y_char)
 
