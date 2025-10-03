@@ -154,32 +154,28 @@ public class MainActivity extends AppCompatActivity {
         final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
 
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            Toast.makeText(this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        startBleScan();
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.ACCESS_FINE_LOCATION},
-                    1);
-        } else {
-            bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-            scanLeDevice(true);
-        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-                scanLeDevice(true);
+            // Check if ALL permissions were granted. A simple check is to see if any were denied.
+            boolean allGranted = true;
+            for (int grantResult : grantResults) {
+                if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+
+            if (allGranted) {
+                // Permissions have been granted, try to start the scan again.
+                startBleScan();
             } else {
-                Toast.makeText(this, "Permissions not granted.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "All permissions are required to scan for devices.", Toast.LENGTH_LONG).show();
             }
         } else if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -282,6 +278,35 @@ public class MainActivity extends AppCompatActivity {
         File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         currentPhotoPath = image.getAbsolutePath();
         return image;
+    }
+// In MainActivity.java
+
+    private void startBleScan() {
+        // Check for all required permissions at once
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+
+            // If any permission is missing, request them all.
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    },
+                    1); // Use your permission request code
+            return; // Stop here and wait for the user's response.
+        }
+
+        // --- If we get here, all permissions are granted ---
+
+        // 1. Ensure the scanner is initialized. This is the critical fix.
+        if (bluetoothLeScanner == null) {
+            bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+        }
+
+        // 2. Now it is safe to start the scan.
+        scanLeDevice(true);
     }
 
     private void scanLeDevice(final boolean enable) {

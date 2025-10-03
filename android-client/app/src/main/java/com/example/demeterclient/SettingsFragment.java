@@ -103,6 +103,8 @@ public class SettingsFragment extends Fragment {
 
     public void updateConnectionStatus(MainActivity.BleConnectionStatus status) {
         if (!isAdded()) return;
+        ImageView ledIndicator = getView().findViewById(R.id.led_indicator);
+        if (ledIndicator == null) return; // Exit if the view is not found
 
         int drawableId;
         String statusText;
@@ -129,7 +131,10 @@ public class SettingsFragment extends Fragment {
                 statusText = "Disconnected";
                 break;
         }
-        updateLedIndicator(drawableId);
+
+        // FIX: Set the drawable on the ImageView directly
+        ledIndicator.setImageDrawable(ContextCompat.getDrawable(requireContext(), drawableId));
+
         setStatusText(statusText);
     }
 }
