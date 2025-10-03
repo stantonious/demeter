@@ -653,7 +653,8 @@ class ImageUploadProgressChar(dbus.service.Object):
             self.progress = struct.unpack('<i', bytes(value))[0]
             print(f"Original image upload progress: {self.progress}%")
         else:
-            print(f"Received invalid byte array length for progress: {len(value)}")
+            print(
+                f"Received invalid byte array length for progress: {len(value)}")
 
 
 class PChar(dbus.service.Object):
@@ -746,8 +747,9 @@ class ImageChar(dbus.service.Object):
                 # Open the user's photo
                 user_image = Image.open(io.BytesIO(self.image_data))
                 # Generate and download the DALL-E image
-                print ('curr plant name',g_suggested_plant_name)
-                dalle_thread = threading.Thread(target=generate_dalle_image_inpaint, args=(user_image,g_suggested_plant_name,))
+                print('curr plant name', g_suggested_plant_name)
+                dalle_thread = threading.Thread(target=generate_dalle_image_inpaint, args=(
+                    user_image, g_suggested_plant_name,))
                 dalle_thread.start()
                 dalle_thread.join()
 
@@ -755,10 +757,11 @@ class ImageChar(dbus.service.Object):
                     raise Exception("Failed to generate plant image.")
 
                 # Open the generated plant image
-                plant_image = Image.open(io.BytesIO(g_generated_plant_image_data)).convert("RGBA")
+                plant_image = Image.open(io.BytesIO(
+                    g_generated_plant_image_data)).convert("RGBA")
 
                 output_buffer = io.BytesIO()
-                plant_image.resize((256,256)).convert("RGB").save(output_buffer, format="JPEG")
+                plant_image.resize((512,512)).convert("RGB").save(output_buffer, format="JPEG")
                 g_augmented_image_data = output_buffer.getvalue()
 
                 print("Image composition successful.")
@@ -774,7 +777,8 @@ class ImageChar(dbus.service.Object):
                 g_generated_plant_image_data = bytearray()
         else:
             self.image_data.extend(chunk)
-            print(f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
+            print(
+                f"Received chunk of size {len(chunk)}, total size {len(self.image_data)}")
 
 
 class IntOffsetChar(dbus.service.Object):
@@ -805,7 +809,8 @@ class IntOffsetChar(dbus.service.Object):
             self.value = struct.unpack('<i', bytes(value))[0]
             print(f"Set image request offset to: {self.value}")
         else:
-            print(f"Received invalid byte array length for offset: {len(value)}")
+            print(
+                f"Received invalid byte array length for offset: {len(value)}")
 
 
 class AugmentedImageChar(dbus.service.Object):
@@ -849,7 +854,8 @@ class AugmentedImageChar(dbus.service.Object):
         progress = int(end_index * 100 / len(g_augmented_image_data))
         self.service.augmented_image_progress_char.set_progress(progress)
 
-        print(f"Reading augmented image chunk (offset: {offset}, size: {len(chunk)})")
+        print(
+            f"Reading augmented image chunk (offset: {offset}, size: {len(chunk)})")
         return [dbus.Byte(b) for b in chunk]
 
 
@@ -868,15 +874,15 @@ def update_generating_status(start_time, prompt=''):
 
 
 def generate_plant_prompt(
-    n_mgkg, p_mgkg, k_mgkg, ph, moisture, sunlight,
-    lat, lon, soil_type, plant_type, max_plants=3
+    n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity,
+    lat, lon, plant_type, max_plants=3
 ):
     print('ptype', plant_type)
     prompt = (
-        f"Suggest {max_plants} {plant_type} plant types for a location ({lat}, {lon}) with {soil_type} soil.\n"
-        f"Soil composition is: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, moisture={moisture}.\n"
-        f"Sunlight: {sunlight}.\n"
-        f"Reply in {max_plants} short bullet point only. No extra text."
+        f"Suggest {max_plants} {plant_type} plant types for a location at ({lat}, {lon}).\n"
+        f"Soil composition is: N={n_mgkg}mg/kg, P={p_mgkg}mg/kg, K={k_mgkg}mg/kg, pH={ph}, soil moisture={moisture} %.\n"
+        f"Sun intesity: {sun_intensity} lux.\n"
+        f"Reply in {max_plants} short bullet points, with the name of the plant types only."
     )
     return prompt
 
@@ -939,7 +945,7 @@ def generate_chatgpt_response(prompt, llm_status_char):
         lines = response.split('\n')
         for line in lines:
             line = line.strip()
-            #if line.startswith(('-', '*')):
+            # if line.startswith(('-', '*')):
             if True:
                 plant_name = line.lstrip('*- ').strip()
                 g_suggested_plant_name = plant_name
@@ -953,43 +959,35 @@ def generate_chatgpt_response(prompt, llm_status_char):
         llm_status_char.set_status(2)  # Ready
 
 
-def generate_dalle_image_inpaint(image,plant_name):
+def generate_dalle_image_inpaint(image, plant_name):
     global g_generated_plant_image_data
-    print ('plant name',plant_name)
+    print('plant name', plant_name)
     if not plant_name:
         print("No plant name available to generate an image.")
         return
 
     try:
 
-        print(1)
-        mask = Image.new("RGBA",image.size,(0,0,0,255))
-        print(2)
+        print('Generating dalle image')
+        mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
         draw = ImageDraw.Draw(mask)
-        print(3)
-        #(x1,y1,x2,y2)
-        draw.rectangle((100,100,200,200),fill=(0,0,0,0))
-        print(4)
-
+        # (x1,y1,x2,y2)
+        draw.rectangle((100, 100, 200, 200), fill=(0, 0, 0, 0))
         img_bytes = io.BytesIO()
-        print(5)
-        image.convert("RGBA").save('./img.png',format="PNG")
+        image.convert("RGBA").save('./img.png', format="PNG")
         img_bytes.seek(0)
-        print(6)
         mask_bytes = io.BytesIO()
-        print(7)
-        mask.convert("RGBA").save('./mask.png',format="PNG")
+        mask.convert("RGBA").save('./mask.png', format="PNG")
         mask_bytes.seek(0)
-        print(8)
 
-        with open('./img.png','rb') as image_f, open('./mask.png','rb') as mask_f:
+        with open('./img.png', 'rb') as image_f, open('./mask.png', 'rb') as mask_f:
             response = client.images.edit(
                 model="dall-e-2",
                 image=image_f,
                 mask=mask_f,
-                prompt=f"A clear, high-quality image of a {plant_name} plant that is firmly planted and integrated with its surroundings.",
+                prompt=f"A clear, high-quality image of a fully grown {plant_name} {g_plant_type} that is firmly planted and part of the natural surroundings.  The view point should be from 6 ft. above and at a 20 degree angle.",
                 n=1,  # Number of images to generate
-                size="1024x1024" #Image resolution
+                size="512x512"  # Image resolution
             )
             # The generated image URL is in the response
             image_url = response.data[0].url
@@ -1040,9 +1038,9 @@ def generate_dalle_image(plant_name):
 
 def generate_llm_response(prompt, llm_status_char):
     generate_chatgpt_response(prompt, llm_status_char)
-    #if g_llm_backend == 1:
+    # if g_llm_backend == 1:
     #    generate_chatgpt_response(prompt, llm_status_char)
-    #else:
+    # else:
     #    generate_ollama_response(prompt, llm_status_char)
 
 
@@ -1052,6 +1050,14 @@ sun_amount = "6"
 ph_level = "7."
 soil_moister_level = "semi-dry"
 relative_humidity_level = "19"  # percent
+
+
+plant_type_mapping = [
+    "Vegetable", "Fruit", "Grass", "Ground Cover", "Flower", "Shrub",
+    "Perennials", "Annual", "Aquatic", "Succulents", "Bulbs", "Climbers",
+    "Vines", "Deciduous", "Biennials", "Houseplants", "Tropicals",
+    "Shade Tree", "Fruit Tree", "Evergreen Tree"
+]
 
 
 class PlantTypeChar(dbus.service.Object):
@@ -1090,15 +1096,11 @@ class PlantTypeChar(dbus.service.Object):
         if len(value) == 4:
             written_value = struct.unpack('<i', bytes(value))[0]
             print(f"Set plant type to: {written_value}")
-            if written_value == 0:
-                g_plant_type = 'ground cover'
-            elif written_value == 1:
-                g_plant_type = 'vegetable'
-            elif written_value == 2:
-                g_plant_type = 'shrub'
-            elif written_value == 3:
-                g_plant_type = 'flowering'
-            print('setting plant type to ', g_plant_type)
+            if 0 <= written_value < len(plant_type_mapping):
+                g_plant_type = plant_type_mapping[written_value]
+                print('setting plant type to ', g_plant_type)
+            else:
+                print(f"Invalid plant type index: {written_value}")
         else:
             print(f"Received invalid byte array length: {len(value)}")
 
@@ -1243,8 +1245,8 @@ class IntWritableChar(dbus.service.Object):
                 self.value = 1  # set offset to 1
                 if not is_generating:
                     print('generating', g_plant_type)
-                    g_llm_prompt = generate_plant_prompt(nit_val, phr_val, pot_val, ph=7.0, moisture='moderate', sunlight=sun_amount,
-                                                         lat=location_lat, lon=location_lon, soil_type='normal', plant_type=g_plant_type, max_plants=g_num_suggestions)
+                    g_llm_prompt = generate_plant_prompt(nit_val, phr_val, pot_val, ph=7.0, moisture=g_moisture_val, sun_intensity=g_light_val,
+                                                         lat=location_lat, lon=location_lon, plant_type=g_plant_type, max_plants=g_num_suggestions)
                     print('sending llm req', g_llm_prompt)
                     # Pass the llm_status_char to the thread
                     thread = threading.Thread(target=generate_llm_response, args=(
@@ -1295,7 +1297,7 @@ class LlmStatusChar(dbus.service.Object):
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="", out_signature="")
     def StartNotify(self):
-        print ('llm status notif')
+        print('llm status notif')
         if self.notifying:
             return
         self.notifying = True
@@ -1309,7 +1311,7 @@ class LlmStatusChar(dbus.service.Object):
         if not self.notifying:
             return False
         packed = struct.pack('<f', self.status)
-        print ('llm status ',self.status)
+        print('llm status ', self.status)
         self.PropertiesChanged("org.bluez.GattCharacteristic1",
                                {"Value": [dbus.Byte(b) for b in packed]}, [])
         return True
@@ -1357,8 +1359,6 @@ class StringChar(dbus.service.Object):
             return []
 
 
-
-
 class Advertisement(dbus.service.Object):
     def __init__(self, bus, index, service_uuid):
         self.path = f"/org/bluez/example/advertisement{index}"
@@ -1367,14 +1367,12 @@ class Advertisement(dbus.service.Object):
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_properties(self):
-        return {
-            ADVERTISEMENT_INTERFACE: {
-                'Type': dbus.String('peripheral'),
-                'ServiceUUIDs': dbus.Array([self.service_uuid], signature='s'),
-                'LocalName': dbus.String('demeter'),
-                'IncludeTxPower': dbus.Boolean(True),
-            }
-        }
+        properties = {}
+        properties['Type'] = dbus.String('peripheral')
+        properties['ServiceUUIDs'] = dbus.Array([self.service_uuid], signature='s')
+        properties['LocalName'] = dbus.String('demeter')
+        properties['IncludeTxPower'] = dbus.Boolean(True)
+        return {ADVERTISEMENT_INTERFACE: properties}
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
@@ -1382,14 +1380,16 @@ class Advertisement(dbus.service.Object):
     @dbus.service.method('org.freedesktop.DBus.Properties',
                          in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
+        if interface != ADVERTISEMENT_INTERFACE:
+            raise dbus.exceptions.DBusException(
+                'org.freedesktop.DBus.Error.InvalidArgs',
+                'Invalid interface passed to GetAll')
         return self.get_properties()[interface]
 
     @dbus.service.method(ADVERTISEMENT_INTERFACE,
                          in_signature='', out_signature='')
     def Release(self):
         print("Advertisement released")
-
-
 
 
 class Service(dbus.service.Object):
@@ -1625,15 +1625,15 @@ def main():
     service.characteristics.append(num_suggestions_char)
 
     image_char = ImageChar(bus, 15,
-                             "12345678-1234-5678-1234-56789abcdff0", ["write"], service)
+                           "12345678-1234-5678-1234-56789abcdff0", ["write"], service)
     service.characteristics.append(image_char)
 
     image_request_char = IntOffsetChar(bus, 16,
-                                         "12345678-1234-5678-1234-56789abcdff1", ["write"], service)
+                                       "12345678-1234-5678-1234-56789abcdff1", ["write"], service)
     service.characteristics.append(image_request_char)
 
     augmented_image_char = AugmentedImageChar(bus, 17,
-                                                "12345678-1234-5678-1234-56789abcdff2", ["read"], service, image_request_char)
+                                              "12345678-1234-5678-1234-56789abcdff2", ["read"], service, image_request_char)
     service.characteristics.append(augmented_image_char)
 
     image_status_char = ImageStatusChar(bus, 18,
@@ -1641,14 +1641,14 @@ def main():
     service.characteristics.append(image_status_char)
 
     augmented_image_progress_char = AugmentedImageProgressChar(bus, 19,
-                                                                "12345678-1234-5678-1234-56789abcdff4", ["read", "notify"], service)
+                                                               "12345678-1234-5678-1234-56789abcdff4", ["read", "notify"], service)
     service.characteristics.append(augmented_image_progress_char)
 
     image_upload_progress_char = ImageUploadProgressChar(bus, 20,
-                                                            "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
+                                                         "12345678-1234-5678-1234-56789abcdff5", ["write"], service)
     service.characteristics.append(image_upload_progress_char)
 
-    ad = Advertisement(bus, 0,SERVICE_UUID)
+    ad = Advertisement(bus, 0, SERVICE_UUID)
 
     service.llm_status_char = llm_status_char
     service.image_status_char = image_status_char
@@ -1663,9 +1663,9 @@ def main():
                                 "org.bluez.LEAdvertisingManager1")
 
     ad_manager.RegisterAdvertisement(ad.get_path(), dbus.Dictionary({}, signature='sv'),
-                                       reply_handler=lambda: print(
-                                           "Advertisement registered"),
-                                       error_handler=lambda e: print("Failed to register ad:", e))
+                                     reply_handler=lambda: print(
+        "Advertisement registered"),
+        error_handler=lambda e: print("Failed to register ad:", e))
     gatt_manager.RegisterApplication(app.get_path(), {},
                                      reply_handler=lambda: print(
                                          "GATT app registered"),

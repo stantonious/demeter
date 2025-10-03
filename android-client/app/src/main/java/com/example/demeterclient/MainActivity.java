@@ -23,10 +23,10 @@ import android.os.Environment;
 import android.view.View;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -38,7 +38,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import androidx.exifinterface.media.ExifInterface;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.viewpager2.widget.ViewPager2;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -77,7 +79,10 @@ public class MainActivity extends AppCompatActivity {
     private PlotView livePlotView;
     private Button takePictureButton;
     private Button getAugmentedImageButton;
-    private ImageView augmentedImageView;
+    private ViewPager2 imageSlider;
+    private ImageSliderAdapter imageSliderAdapter;
+    private List<byte[]> imageList = new ArrayList<>();
+    private byte[] originalImage;
     private TextView augmentedImageProgressTextView;
     private TextView uploadProgressTextView;
 
@@ -132,9 +137,12 @@ public class MainActivity extends AppCompatActivity {
         livePlotView = findViewById(R.id.live_plot_view);
         takePictureButton = findViewById(R.id.take_picture_button);
         getAugmentedImageButton = findViewById(R.id.get_augmented_image_button);
-        augmentedImageView = findViewById(R.id.augmented_image_view);
+        imageSlider = findViewById(R.id.image_slider);
         augmentedImageProgressTextView = findViewById(R.id.augmented_image_progress_text_view);
         uploadProgressTextView = findViewById(R.id.upload_progress_text_view);
+
+        imageSliderAdapter = new ImageSliderAdapter(this, imageList);
+        imageSlider.setAdapter(imageSliderAdapter);
 
         takePictureButton.setEnabled(false);
         getAugmentedImageButton.setEnabled(false);
@@ -423,13 +431,16 @@ public class MainActivity extends AppCompatActivity {
                     if (data != null && data.length > 0) {
                         try {
                             augmentedImageStream.write(data);
-                            // Check if this is the last chunk (chunk size is less than max)
-                            if (data.length < 512) {
-                                byte[] imageData = augmentedImageStream.toByteArray();
-                                Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                            if (data.length < 512) { // Last chunk
+                                byte[] augmentedImage = augmentedImageStream.toByteArray();
                                 runOnUiThread(() -> {
-                                    augmentedImageView.setImageBitmap(bitmap);
-                                    augmentedImageView.setVisibility(View.VISIBLE);
+                                    imageList.clear();
+                                    if (originalImage != null) {
+                                        imageList.add(originalImage);
+                                    }
+                                    imageList.add(augmentedImage);
+                                    imageSliderAdapter.notifyDataSetChanged();
+                                    imageSlider.setVisibility(View.VISIBLE);
                                     augmentedImageProgressTextView.setVisibility(View.GONE);
                                     Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
                                 });
@@ -440,14 +451,17 @@ public class MainActivity extends AppCompatActivity {
                         } catch (IOException e) {
                             Log.e(TAG, "Error writing to augmented image stream", e);
                         }
-                    } else {
-                        // Empty data also signals end of transfer
-                        byte[] imageData = augmentedImageStream.toByteArray();
-                        if (imageData.length > 0) {
-                            Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+                    } else { // EOT
+                        byte[] augmentedImage = augmentedImageStream.toByteArray();
+                        if (augmentedImage.length > 0) {
                             runOnUiThread(() -> {
-                                augmentedImageView.setImageBitmap(bitmap);
-                                augmentedImageView.setVisibility(View.VISIBLE);
+                                imageList.clear();
+                                if (originalImage != null) {
+                                    imageList.add(originalImage);
+                                }
+                                imageList.add(augmentedImage);
+                                imageSliderAdapter.notifyDataSetChanged();
+                                imageSlider.setVisibility(View.VISIBLE);
                                 augmentedImageProgressTextView.setVisibility(View.GONE);
                                 Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
                             });
@@ -780,11 +794,30 @@ public class MainActivity extends AppCompatActivity {
             try {
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
                 Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
+
+                // Rotate bitmap according to EXIF data
+                InputStream exifInputStream = getContentResolver().openInputStream(imageUri);
+                ExifInterface exifInterface = new ExifInterface(exifInputStream);
+                int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                Matrix matrix = new Matrix();
+                switch (orientation) {
+                    case ExifInterface.ORIENTATION_ROTATE_90:
+                        matrix.postRotate(90);
+                        break;
+                    case ExifInterface.ORIENTATION_ROTATE_180:
+                        matrix.postRotate(180);
+                        break;
+                    case ExifInterface.ORIENTATION_ROTATE_270:
+                        matrix.postRotate(270);
+                        break;
+                }
+                Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 512, 512, true);
 
                 ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
                 resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
                 byte[] imageData = byteStream.toByteArray();
+                originalImage = imageData; // Save original image
                 final int totalSize = imageData.length;
                 Log.d(TAG, "Downsampled image size: " + totalSize + " bytes");
 
@@ -851,7 +884,7 @@ public class MainActivity extends AppCompatActivity {
         }
         augmentedImageStream.reset();
         imageReadOffset = 0;
-        augmentedImageView.setVisibility(View.GONE);
+        imageSlider.setVisibility(View.GONE);
         augmentedImageProgressTextView.setVisibility(View.VISIBLE);
         augmentedImageProgressTextView.setText("Download Progress: 0%");
         Toast.makeText(this, "Generating and fetching augmented image... Please wait.", Toast.LENGTH_LONG).show();
