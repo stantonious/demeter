@@ -48,8 +48,8 @@ public class PreviewActivity extends AppCompatActivity {
 
                 paint = new Paint();
                 paint.setColor(Color.RED);
-                paint.setStrokeWidth(5f);
-                paint.setStyle(Paint.Style.STROKE);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setAlpha(128); // 50% transparent
 
             } catch (IOException e) {
                 e.printStackTrace();
