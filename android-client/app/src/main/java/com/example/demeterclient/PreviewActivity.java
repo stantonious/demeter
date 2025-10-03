@@ -32,6 +32,7 @@ public class PreviewActivity extends AppCompatActivity {
     private Bitmap mutableBitmap;
     private Canvas canvas;
     private Paint paint;
+    private int augmentSize = 100; // Default value
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,12 +45,13 @@ public class PreviewActivity extends AppCompatActivity {
         clearButton = findViewById(R.id.clear_button);
 
         String imageUriString = getIntent().getStringExtra("image_uri");
+        augmentSize = getIntent().getIntExtra("augment_size", 100);
+
         if (imageUriString != null) {
             imageUri = Uri.parse(imageUriString);
             try {
                 Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
 
-                // Correct for EXIF orientation
                 InputStream inputStream = getContentResolver().openInputStream(imageUri);
                 ExifInterface exifInterface = new ExifInterface(inputStream);
                 int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
@@ -134,10 +136,13 @@ public class PreviewActivity extends AppCompatActivity {
         mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
         canvas = new Canvas(mutableBitmap);
 
+        float scale = (float)originalBitmap.getWidth() / 512.0f;
+        float radius = (augmentSize / 2.0f) * scale;
+
         for (int i = 0; i < aoiPoints.size(); i += 2) {
-            float bmpX = aoiPoints.get(i) * (originalBitmap.getWidth() / 512.0f);
-            float bmpY = aoiPoints.get(i + 1) * (originalBitmap.getHeight() / 512.0f);
-            canvas.drawCircle(bmpX, bmpY, 20f, paint); // Radius 20
+            float bmpX = aoiPoints.get(i) * scale;
+            float bmpY = aoiPoints.get(i + 1) * scale;
+            canvas.drawCircle(bmpX, bmpY, radius, paint);
         }
         previewImageView.setImageBitmap(mutableBitmap);
     }

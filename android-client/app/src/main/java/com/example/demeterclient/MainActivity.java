@@ -117,6 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
     private int numSuggestions = 1;
     private int plantType = 0;
+    private int augmentSize = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -162,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
-            // Check if ALL permissions were granted. A simple check is to see if any were denied.
             boolean allGranted = true;
             for (int grantResult : grantResults) {
                 if (grantResult != PackageManager.PERMISSION_GRANTED) {
@@ -172,7 +172,6 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (allGranted) {
-                // Permissions have been granted, try to start the scan again.
                 startBleScan();
             } else {
                 Toast.makeText(this, "All permissions are required to scan for devices.", Toast.LENGTH_LONG).show();
@@ -198,6 +197,7 @@ public class MainActivity extends AppCompatActivity {
                 if (currentPhotoPath != null) {
                     Intent intent = new Intent(this, PreviewActivity.class);
                     intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                    intent.putExtra("augment_size", augmentSize);
                     startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
                 }
                 break;
@@ -274,33 +274,25 @@ public class MainActivity extends AppCompatActivity {
         currentPhotoPath = image.getAbsolutePath();
         return image;
     }
-// In MainActivity.java
 
     private void startBleScan() {
-        // Check for all required permissions at once
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 
-            // If any permission is missing, request them all.
             ActivityCompat.requestPermissions(this,
                     new String[]{
                             Manifest.permission.BLUETOOTH_SCAN,
                             Manifest.permission.BLUETOOTH_CONNECT,
                             Manifest.permission.ACCESS_FINE_LOCATION
                     },
-                    1); // Use your permission request code
-            return; // Stop here and wait for the user's response.
+                    1);
+            return;
         }
 
-        // --- If we get here, all permissions are granted ---
-
-        // 1. Ensure the scanner is initialized. This is the critical fix.
         if (bluetoothLeScanner == null) {
             bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
         }
-
-        // 2. Now it is safe to start the scan.
         scanLeDevice(true);
     }
 
@@ -909,7 +901,6 @@ public class MainActivity extends AppCompatActivity {
         return currentStatus;
     }
 
-    // Setters for settings
     public void setNumSuggestions(int numSuggestions) {
         this.numSuggestions = numSuggestions;
     }
@@ -919,6 +910,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void setAugmentSize(int size) {
+        this.augmentSize = size;
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
