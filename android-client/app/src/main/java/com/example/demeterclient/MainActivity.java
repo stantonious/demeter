@@ -38,6 +38,8 @@ import androidx.fragment.app.Fragment;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -68,6 +70,8 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGatt bluetoothGatt;
     private Handler bleHandler = new Handler(Looper.getMainLooper());
 
+    private SwipeRefreshLayout swipeRefreshLayout;
+
     public List<byte[]> imageList = new ArrayList<>();
     public byte[] originalImage;
 
@@ -88,6 +92,14 @@ public class MainActivity extends AppCompatActivity {
     public ArrayList<Float> sunHistory = new ArrayList<>();
     public ArrayList<Float> moistureHistory = new ArrayList<>();
     public ArrayList<Float> lightHistory = new ArrayList<>();
+
+    private enum BleConnectionStatus {
+        DISCONNECTED,
+        SCANNING,
+        CONNECTING,
+        CONNECTED,
+        ERROR
+    }
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -110,6 +122,20 @@ public class MainActivity extends AppCompatActivity {
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
         NavController navController = navHostFragment.getNavController();
         NavigationUI.setupWithNavController(navView, navController);
+
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            if (bluetoothGatt != null) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    return;
+                }
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+                bluetoothGatt = null;
+            }
+            scanLeDevice(true);
+            swipeRefreshLayout.setRefreshing(false);
+        });
 
         handler = new Handler();
 
@@ -221,10 +247,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (enable) {
+            updateLedIndicator(BleConnectionStatus.SCANNING);
             handler.postDelayed(() -> {
                 if (scanning) {
                     scanning = false;
                     bluetoothLeScanner.stopScan(leScanCallback);
+                    updateLedIndicator(BleConnectionStatus.DISCONNECTED);
                 }
             }, SCAN_PERIOD);
 
@@ -255,6 +283,7 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
+        updateLedIndicator(BleConnectionStatus.CONNECTING);
         bluetoothGatt = device.connectGatt(this, false, gattCallback);
     }
 
@@ -262,6 +291,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
+                updateLedIndicator(BleConnectionStatus.CONNECTED);
                 bleHandler.postDelayed(() -> {
                     if (bluetoothGatt != null) {
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -270,6 +300,8 @@ public class MainActivity extends AppCompatActivity {
                         bluetoothGatt.discoverServices();
                     }
                 }, 600);
+            } else {
+                updateLedIndicator(BleConnectionStatus.DISCONNECTED);
             }
         }
 
@@ -642,6 +674,14 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    private SettingsFragment getSettingsFragment() {
+        Fragment currentFragment = getCurrentFragment();
+        if (currentFragment instanceof SettingsFragment) {
+            return (SettingsFragment) currentFragment;
+        }
+        return null;
+    }
+
     private StatsFragment getStatsFragment() {
         Fragment currentFragment = getCurrentFragment();
         if (currentFragment instanceof StatsFragment) {
@@ -750,6 +790,41 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     fragment.setAugmentedImageProgressVisibility(View.GONE);
                 }
+            }
+        });
+    }
+
+    private void updateLedIndicator(BleConnectionStatus status) {
+        runOnUiThread(() -> {
+            SettingsFragment fragment = getSettingsFragment();
+            if (fragment != null) {
+                int drawableId;
+                String statusText;
+                switch (status) {
+                    case SCANNING:
+                        drawableId = R.drawable.led_yellow;
+                        statusText = "Scanning...";
+                        break;
+                    case CONNECTING:
+                        drawableId = R.drawable.led_yellow;
+                        statusText = "Connecting...";
+                        break;
+                    case CONNECTED:
+                        drawableId = R.drawable.led_green;
+                        statusText = "Connected";
+                        break;
+                    case ERROR:
+                        drawableId = R.drawable.led_red;
+                        statusText = "Error";
+                        break;
+                    case DISCONNECTED:
+                    default:
+                        drawableId = R.drawable.led_grey;
+                        statusText = "Disconnected";
+                        break;
+                }
+                fragment.updateLedIndicator(drawableId);
+                fragment.setStatusText(statusText);
             }
         });
     }

@@ -9,16 +9,21 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 public class SettingsFragment extends Fragment {
 
     private EditText numSuggestionsEditText;
     private Spinner plantTypeSpinner;
+    private ImageView ledIndicator;
+    private TextView statusTextView;
     private MainActivity mainActivity;
 
     @Nullable
@@ -34,6 +39,8 @@ public class SettingsFragment extends Fragment {
 
         numSuggestionsEditText = view.findViewById(R.id.num_suggestions_edit_text);
         plantTypeSpinner = view.findViewById(R.id.plant_type_spinner);
+        ledIndicator = view.findViewById(R.id.led_indicator);
+        statusTextView = view.findViewById(R.id.status_text_view);
 
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(requireActivity(),
                 R.array.plant_types, android.R.layout.simple_spinner_item);
@@ -82,5 +89,17 @@ public class SettingsFragment extends Fragment {
 
     public int getPlantType() {
         return plantTypeSpinner.getSelectedItemPosition();
+    }
+
+    public void updateLedIndicator(int drawableId) {
+        if (ledIndicator != null && isAdded()) {
+            ledIndicator.setImageDrawable(ContextCompat.getDrawable(requireContext(), drawableId));
+        }
+    }
+
+    public void setStatusText(String text) {
+        if (statusTextView != null) {
+            statusTextView.setText(text);
+        }
     }
 }
