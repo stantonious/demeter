@@ -23,6 +23,7 @@ public class SuggestFragment extends Fragment {
     private Button takePictureButton;
     private Button getAugmentedImageButton;
     private TextView augmentedImageProgressTextView;
+    private ProgressBar augmentedImageProgressBar;
     private ViewPager2 imageSlider;
     private ImageSliderAdapter imageSliderAdapter;
 
@@ -46,6 +47,7 @@ public class SuggestFragment extends Fragment {
         takePictureButton = view.findViewById(R.id.take_picture_button);
         getAugmentedImageButton = view.findViewById(R.id.get_augmented_image_button);
         augmentedImageProgressTextView = view.findViewById(R.id.augmented_image_progress_text_view);
+        augmentedImageProgressBar = view.findViewById(R.id.augmented_image_progress_bar);
         imageSlider = view.findViewById(R.id.image_slider);
 
         imageSliderAdapter = new ImageSliderAdapter(requireActivity(), mainActivity.imageList);
@@ -96,6 +98,14 @@ public class SuggestFragment extends Fragment {
 
     public void setAugmentedImageProgressVisibility(int visibility) {
         augmentedImageProgressTextView.setVisibility(visibility);
+    }
+
+    public void setAugmentedImageProgressBarVisibility(int visibility) {
+        augmentedImageProgressBar.setVisibility(visibility);
+    }
+
+    public void setAugmentedImageProgress(int progress) {
+        augmentedImageProgressBar.setProgress(progress);
     }
 
     public void enableGetSuggestionButton(boolean enabled) {

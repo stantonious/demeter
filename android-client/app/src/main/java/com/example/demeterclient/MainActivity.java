@@ -708,7 +708,9 @@ public class MainActivity extends AppCompatActivity {
             if (fragment != null) {
                 fragment.setImageSliderVisibility(View.GONE);
                 fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                 fragment.setAugmentedImageProgressText("Download Progress: 0%");
+                fragment.setAugmentedImageProgress(0);
             }
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
@@ -821,6 +823,7 @@ public class MainActivity extends AppCompatActivity {
                 fragment.updateImageSlider();
                 fragment.setImageSliderVisibility(View.VISIBLE);
                 fragment.setAugmentedImageProgressVisibility(View.GONE);
+                fragment.setAugmentedImageProgressBarVisibility(View.GONE);
             }
             Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
         });
@@ -865,9 +868,12 @@ public class MainActivity extends AppCompatActivity {
             if (fragment != null) {
                 if (progress > 0 && progress < 100) {
                     fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                    fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
+                    fragment.setAugmentedImageProgress(progress);
                 } else {
                     fragment.setAugmentedImageProgressVisibility(View.GONE);
+                    fragment.setAugmentedImageProgressBarVisibility(View.GONE);
                 }
             }
         });
