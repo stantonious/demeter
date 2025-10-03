@@ -49,19 +49,6 @@ public class ImageFragment extends Fragment {
             imageView.setImageBitmap(bitmap);
         }
 
-        imageView.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                int x = (int) event.getX();
-                int y = (int) event.getY();
-
-                MainActivity mainActivity = (MainActivity) getActivity();
-                if (mainActivity != null) {
-                    mainActivity.writeAoiCoordinates(x, y);
-                    Toast.makeText(getContext(), "AOI sent: (" + x + ", " + y + ")", Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
-            return false;
-        });
     }
+
 }
