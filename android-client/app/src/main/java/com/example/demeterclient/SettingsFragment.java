@@ -21,6 +21,7 @@ import androidx.fragment.app.Fragment;
 public class SettingsFragment extends Fragment {
 
     private EditText numSuggestionsEditText;
+    private EditText augmentSizeEditText;
     private Spinner plantTypeSpinner;
     private TextView statusTextView;
     private MainActivity mainActivity;
@@ -37,6 +38,7 @@ public class SettingsFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         numSuggestionsEditText = view.findViewById(R.id.num_suggestions_edit_text);
+        augmentSizeEditText = view.findViewById(R.id.augment_size_edit_text);
         plantTypeSpinner = view.findViewById(R.id.plant_type_spinner);
         statusTextView = view.findViewById(R.id.status_text_view);
 
@@ -71,6 +73,33 @@ public class SettingsFragment extends Fragment {
         // Set initial values
         mainActivity.setNumSuggestions(getNumSuggestions());
         mainActivity.setPlantType(getPlantType());
+        mainActivity.setAugmentSize(getAugmentSize());
+
+        augmentSizeEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mainActivity.setAugmentSize(getAugmentSize());
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    public int getAugmentSize() {
+        String augmentSizeStr = augmentSizeEditText.getText().toString();
+        if (!augmentSizeStr.isEmpty()) {
+            try {
+                int size = Integer.parseInt(augmentSizeStr);
+                return Math.max(5, Math.min(200, size));
+            } catch (NumberFormatException e) {
+                return 100;
+            }
+        }
+        return 100;
     }
 
     public int getNumSuggestions() {

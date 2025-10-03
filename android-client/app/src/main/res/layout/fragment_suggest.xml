@@ -70,6 +70,14 @@
             android:text="Download Progress: 0%"
             android:visibility="gone" />
 
+        <ProgressBar
+            android:id="@+id/augmented_image_progress_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
+
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/image_slider"
             android:layout_width="match_parent"

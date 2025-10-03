@@ -422,6 +422,8 @@ public class MainActivity extends AppCompatActivity {
                 handleImageStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS)) {
                 handleAugmentedImageProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
+            } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS)) {
+                handleImageUploadProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else {
                 updatePlotData(characteristic);
             }
@@ -452,6 +454,23 @@ public class MainActivity extends AppCompatActivity {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setSuggestionText("Suggestion: Requesting...");
+            }
+        });
+    }
+
+    private void handleImageUploadProgressChange(int progress) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                if (progress > 0 && progress < 100) {
+                    fragment.setUploadProgressVisibility(View.VISIBLE);
+                    fragment.setUploadProgressBarVisibility(View.VISIBLE);
+                    fragment.setUploadProgressText("Upload Progress: " + progress + "%");
+                    fragment.setUploadProgress(progress);
+                } else {
+                    fragment.setUploadProgressVisibility(View.GONE);
+                    fragment.setUploadProgressBarVisibility(View.GONE);
+                }
             }
         });
     }
@@ -529,7 +548,7 @@ public class MainActivity extends AppCompatActivity {
                 GattAttributes.UUID_PH, GattAttributes.UUID_HUMID, GattAttributes.UUID_SUN,
                 GattAttributes.UUID_MOISTURE, GattAttributes.UUID_LIGHT,
                 GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS,
-                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS
+                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS, GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS
         );
         currentSubscriptionIndex = 0;
         subscribeNextCharacteristic(gatt);
@@ -662,13 +681,6 @@ public class MainActivity extends AppCompatActivity {
                     writeCharacteristicToQueue(imageChar, chunk);
 
                     final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
-                    runOnUiThread(() -> {
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setUploadProgressText("Upload Progress: " + progress + "%");
-                            fragment.setUploadProgress(progress);
-                        }
-                    });
                     if (progressChar != null) {
                         byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
                         writeCharacteristicToQueue(progressChar, progressValue);
@@ -677,10 +689,6 @@ public class MainActivity extends AppCompatActivity {
                 writeCharacteristicToQueue(imageChar, "EOT".getBytes());
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setUploadProgressVisibility(View.GONE);
-                    }
                 });
             } catch (IOException e) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
@@ -700,7 +708,9 @@ public class MainActivity extends AppCompatActivity {
             if (fragment != null) {
                 fragment.setImageSliderVisibility(View.GONE);
                 fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                 fragment.setAugmentedImageProgressText("Download Progress: 0%");
+                fragment.setAugmentedImageProgress(0);
             }
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
@@ -813,6 +823,7 @@ public class MainActivity extends AppCompatActivity {
                 fragment.updateImageSlider();
                 fragment.setImageSliderVisibility(View.VISIBLE);
                 fragment.setAugmentedImageProgressVisibility(View.GONE);
+                fragment.setAugmentedImageProgressBarVisibility(View.GONE);
             }
             Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
         });
@@ -857,9 +868,12 @@ public class MainActivity extends AppCompatActivity {
             if (fragment != null) {
                 if (progress > 0 && progress < 100) {
                     fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
+                    fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
+                    fragment.setAugmentedImageProgress(progress);
                 } else {
                     fragment.setAugmentedImageProgressVisibility(View.GONE);
+                    fragment.setAugmentedImageProgressBarVisibility(View.GONE);
                 }
             }
         });
@@ -907,6 +921,18 @@ public class MainActivity extends AppCompatActivity {
 
     public void setPlantType(int plantType) {
         this.plantType = plantType;
+    }
+
+    public void setAugmentSize(int size) {
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+
+        BluetoothGattCharacteristic augmentSizeChar = service.getCharacteristic(GattAttributes.UUID_AUGMENT_SIZE);
+        if (augmentSizeChar != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(size).array();
+            writeCharacteristicToQueue(augmentSizeChar, value);
+        }
     }
 
     public void writeAoiCoordinates(int x, int y) {
