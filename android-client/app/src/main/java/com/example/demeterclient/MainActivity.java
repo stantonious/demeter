@@ -46,6 +46,10 @@ import androidx.navigation.ui.NavigationUI;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +57,15 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.HttpUrl;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -118,6 +131,7 @@ public class MainActivity extends AppCompatActivity {
     private int numSuggestions = 1;
     private int plantType = 0;
     private int augmentSize = 20;
+    private ArrayList<Integer> aoiList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -204,10 +218,7 @@ public class MainActivity extends AppCompatActivity {
             case REQUEST_PREVIEW_IMAGE:
                 if (data != null) {
                     String imageUriString = data.getStringExtra("image_uri");
-                    ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
-                    if (aoiList != null && !aoiList.isEmpty()) {
-                        writeAoiList(aoiList);
-                    }
+                    this.aoiList = data.getIntegerArrayListExtra("aoi_list");
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
                         sendImage(imageUri);
@@ -379,8 +390,6 @@ public class MainActivity extends AppCompatActivity {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 if (characteristic.getUuid().equals(GattAttributes.UUID_SUGGEST)) {
                     readLlmChunk();
-                } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_REQUEST)) {
-                    readAugmentedImageChunk();
                 }
             } else {
                 writeQueue.clear();
@@ -395,8 +404,6 @@ public class MainActivity extends AppCompatActivity {
 
             if (characteristic.getUuid().equals(GattAttributes.UUID_LLM)) {
                 handleLlmRead(characteristic.getValue());
-            } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE)) {
-                handleAugmentedImageRead(characteristic.getValue());
             }
         }
 
@@ -413,8 +420,6 @@ public class MainActivity extends AppCompatActivity {
                 handleLlmStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_STATUS)) {
                 handleImageStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
-            } else if (characteristic.getUuid().equals(GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS)) {
-                handleAugmentedImageProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS)) {
                 handleImageUploadProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else {
@@ -541,7 +546,7 @@ public class MainActivity extends AppCompatActivity {
                 GattAttributes.UUID_PH, GattAttributes.UUID_HUMID, GattAttributes.UUID_SUN,
                 GattAttributes.UUID_MOISTURE, GattAttributes.UUID_LIGHT,
                 GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS,
-                GattAttributes.UUID_AUGMENTED_IMAGE_PROGRESS, GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS
+                GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS
         );
         currentSubscriptionIndex = 0;
         subscribeNextCharacteristic(gatt);
@@ -690,46 +695,159 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void fetchAugmentedImage() {
-        if (bluetoothGatt == null) {
-            Toast.makeText(this, "Bluetooth not connected", Toast.LENGTH_SHORT).show();
+        if (currentPhotoPath == null || aoiList == null || aoiList.isEmpty()) {
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Please select an image and at least one AOI.", Toast.LENGTH_SHORT).show());
             return;
         }
-        augmentedImageStream.reset();
-        imageReadOffset = 0;
+
+        if (suggestionBuilder == null || suggestionBuilder.length() == 0) {
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Please get a suggestion first.", Toast.LENGTH_SHORT).show());
+            return;
+        }
+
         runOnUiThread(() -> {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setImageSliderVisibility(View.GONE);
                 fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
                 fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressText("Download Progress: 0%");
-                fragment.setAugmentedImageProgress(0);
+                fragment.setAugmentedImageProgressText("Generating image...");
+                fragment.setAugmentedImageProgress(50); // Using as an indeterminate indicator
             }
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
-        requestAugmentedImageChunk();
-    }
 
-    private void requestAugmentedImageChunk() {
-        if (bluetoothGatt == null) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-        BluetoothGattCharacteristic requestChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_REQUEST);
-        if (requestChar == null) return;
-        byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(imageReadOffset).array();
-        writeCharacteristicToQueue(requestChar, value);
-    }
+        String suggestion = suggestionBuilder.toString();
+        String[] words = suggestion.split("\\s+");
+        String plantName = words.length > 0 ? words[0].replaceAll("[^a-zA-Z]", "") : "plant";
 
-    private void readAugmentedImageChunk() {
-        if (bluetoothGatt == null) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-        BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_AUGMENTED_IMAGE);
-        if (imageChar == null) return;
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            return;
+
+        String[] plantTypes = getResources().getStringArray(R.array.plant_types);
+        String plantTypeStr = (plantType >= 0 && plantType < plantTypes.length) ? plantTypes[plantType] : "outdoor";
+
+        File imageFile = new File(currentPhotoPath);
+
+        OkHttpClient client = new OkHttpClient();
+
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
+                .scheme("https")
+                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+                .addPathSegment("demeter")
+                .addPathSegment("product")
+                .addPathSegment("create")
+                .addQueryParameter("plant_name", plantName)
+                .addQueryParameter("plant_type", plantTypeStr)
+                .addQueryParameter("mask_size", String.valueOf(augmentSize));
+
+        for (int i = 0; i < aoiList.size(); i += 2) {
+            urlBuilder.addQueryParameter("aois", aoiList.get(i) + "," + aoiList.get(i + 1));
         }
-        bluetoothGatt.readCharacteristic(imageChar);
+
+        RequestBody requestBody = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("scene_img", imageFile.getName(),
+                        RequestBody.create(imageFile, MediaType.parse("image/jpeg")))
+                .build();
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .post(requestBody)
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "DALL-E service call failed", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to generate image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    SuggestFragment fragment = getSuggestFragment();
+                    if (fragment != null) {
+                        fragment.setAugmentedImageProgressVisibility(View.GONE);
+                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    String errorBody = response.body().string();
+                    Log.e(TAG, "DALL-E service error: " + errorBody);
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Failed to generate image: " + response.message(), Toast.LENGTH_LONG).show();
+                        SuggestFragment fragment = getSuggestFragment();
+                        if (fragment != null) {
+                            fragment.setAugmentedImageProgressVisibility(View.GONE);
+                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
+                        }
+                    });
+                    return;
+                }
+
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject json = new JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        String assetURI = json.getString("assetURI");
+                        downloadAugmentedImage(assetURI);
+                    } else {
+                        String reason = json.getString("reason");
+                        Log.e(TAG, "DALL-E service returned error: " + reason);
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image generation failed: " + reason, Toast.LENGTH_LONG).show());
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse DALL-E response", e);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
+                }
+            }
+        });
+    }
+
+    private void downloadAugmentedImage(String url) {
+        OkHttpClient client = new OkHttpClient();
+        Request request = new Request.Builder().url(url).build();
+
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.setAugmentedImageProgressText("Downloading image...");
+                fragment.setAugmentedImageProgress(75);
+            }
+        });
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to download augmented image", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to download image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    SuggestFragment fragment = getSuggestFragment();
+                    if (fragment != null) {
+                        fragment.setAugmentedImageProgressVisibility(View.GONE);
+                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    String errorBody = response.body().string();
+                    Log.e(TAG, "Failed to download augmented image: " + errorBody);
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Failed to download image: " + response.message(), Toast.LENGTH_LONG).show();
+                        SuggestFragment fragment = getSuggestFragment();
+                        if (fragment != null) {
+                            fragment.setAugmentedImageProgressVisibility(View.GONE);
+                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
+                        }
+                    });
+                    return;
+                }
+                byte[] imageBytes = response.body().bytes();
+                finalizeAugmentedImage(imageBytes);
+            }
+        });
     }
 
     private Fragment getCurrentFragment() {
@@ -784,27 +902,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void handleAugmentedImageRead(byte[] data) {
-        try {
-            if (data != null && data.length > 0) {
-                augmentedImageStream.write(data);
-                if (data.length < 512) { // Last chunk heuristic
-                    finalizeAugmentedImage();
-                } else {
-                    imageReadOffset += data.length;
-                    requestAugmentedImageChunk();
-                }
-            } else { // EOT signal or empty packet
-                finalizeAugmentedImage();
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Error writing to augmented image stream", e);
+    private void finalizeAugmentedImage(byte[] augmentedImage) {
+        if (augmentedImage == null || augmentedImage.length == 0) {
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Received empty image.", Toast.LENGTH_SHORT).show());
+            return;
         }
-    }
-
-    private void finalizeAugmentedImage() {
-        byte[] augmentedImage = augmentedImageStream.toByteArray();
-        if (augmentedImage.length == 0) return;
         runOnUiThread(() -> {
             imageList.clear();
             if (originalImage != null) {
@@ -851,23 +953,6 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this, "Server failed to process image.", Toast.LENGTH_LONG).show();
                     if (fragment != null) fragment.enableGetAugmentedImageButton(false);
                     break;
-            }
-        });
-    }
-
-    private void handleAugmentedImageProgressChange(int progress) {
-        runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                if (progress > 0 && progress < 100) {
-                    fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
-                    fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
-                    fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
-                    fragment.setUploadProgress(progress);
-                } else {
-                    fragment.setAugmentedImageProgressVisibility(View.GONE);
-                    fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                }
             }
         });
     }
@@ -944,20 +1029,4 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void writeAoiList(List<Integer> aois) {
-        if (bluetoothGatt == null || aois == null || aois.isEmpty()) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-
-        BluetoothGattCharacteristic aoiListChar = service.getCharacteristic(GattAttributes.UUID_AOI_LIST);
-        if (aoiListChar != null) {
-            ByteBuffer byteBuffer = ByteBuffer.allocate(aois.size() * 4);
-            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            for (int point : aois) {
-                byteBuffer.putInt(point);
-            }
-            byte[] value = byteBuffer.array();
-            writeCharacteristicToQueue(aoiListChar, value);
-        }
-    }
 }
