@@ -1,0 +1,16 @@
+flask
+Flask-Limiter[memcached]
+flask_cors
+google-cloud-storage
+google-cloud-secret-manager
+gunicorn
+protobuf
+pyjwt
+fuzzywuzzy
+numpy
+firebase-admin
+google-crc32c
+openai
+pillow
+urlfetch
+opencv-python
