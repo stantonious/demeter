@@ -1,5 +1,5 @@
 runtime: python39
-service: feyrle
+service: demeter
 
 instance_class: B2
 
