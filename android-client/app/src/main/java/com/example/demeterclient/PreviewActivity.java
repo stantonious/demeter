@@ -1,48 +1,115 @@
 package com.example.demeterclient;
 
-import static android.app.PendingIntent.getActivity;
-
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
+import android.view.MotionEvent;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.exifinterface.media.ExifInterface;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
 
 public class PreviewActivity extends AppCompatActivity {
 
     private Uri imageUri;
-    private int lastTouchX; // Add variable to hold X coordinate
-    private int lastTouchY; // Add variable to hold Y coordinate
+    private ArrayList<Integer> rawAoiPoints = new ArrayList<>(); // Store raw bitmap coordinates
+    private ImageView previewImageView;
+    private Button clearButton;
+
+    private Bitmap originalBitmap;
+    private Bitmap mutableBitmap;
+    private Canvas canvas;
+    private Paint paint;
+    private int augmentSize = 100; // Default value
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_preview);
 
-        ImageView previewImageView = findViewById(R.id.preview_image_view);
-
+        previewImageView = findViewById(R.id.preview_image_view);
         Button backButton = findViewById(R.id.back_button);
         Button sendButton = findViewById(R.id.send_button);
+        clearButton = findViewById(R.id.clear_button);
 
         String imageUriString = getIntent().getStringExtra("image_uri");
+        augmentSize = getIntent().getIntExtra("augment_size", 100);
+
         if (imageUriString != null) {
             imageUri = Uri.parse(imageUriString);
-            previewImageView.setImageURI(imageUri);
+            try {
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
+
+                InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                ExifInterface exifInterface = new ExifInterface(inputStream);
+                int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+                inputStream.close();
+
+                Matrix matrix = new Matrix();
+                switch (orientation) {
+                    case ExifInterface.ORIENTATION_ROTATE_90:
+                        matrix.postRotate(90);
+                        break;
+                    case ExifInterface.ORIENTATION_ROTATE_180:
+                        matrix.postRotate(180);
+                        break;
+                    case ExifInterface.ORIENTATION_ROTATE_270:
+                        matrix.postRotate(270);
+                        break;
+                }
+
+                originalBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
+                previewImageView.setImageBitmap(mutableBitmap);
+
+                paint = new Paint();
+                paint.setColor(Color.RED);
+                paint.setStyle(Paint.Style.FILL);
+                paint.setAlpha(128); // 50% transparent
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                Toast.makeText(this, "Failed to load image.", Toast.LENGTH_SHORT).show();
+            }
         }
-        // 1. Capture touch coordinates when the user taps the image
-        //TODO move 512 to a const in mainActivity, this is the file size sent to BLEW
+
         previewImageView.setOnTouchListener((v, event) -> {
-            lastTouchX = (int) ((512./previewImageView.getWidth()) * event.getX());
-            lastTouchY = (int) ((512./previewImageView.getHeight()) *event.getY());
-            return false; // Allow the event to pass to the OnClickListener
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (originalBitmap == null) return true;
+
+                float[] touchPoint = { event.getX(), event.getY() };
+                android.graphics.Matrix inverse = new android.graphics.Matrix();
+                previewImageView.getImageMatrix().invert(inverse);
+                inverse.mapPoints(touchPoint);
+                int bmpX = (int) touchPoint[0];
+                int bmpY = (int) touchPoint[1];
+
+                if (bmpX >= 0 && bmpX < originalBitmap.getWidth() && bmpY >= 0 && bmpY < originalBitmap.getHeight()) {
+                    // Store raw coordinates for drawing
+                    rawAoiPoints.add(bmpX);
+                    rawAoiPoints.add(bmpY);
+
+                    drawMarkers();
+
+                    int numAois = rawAoiPoints.size() / 2;
+                    Toast.makeText(PreviewActivity.this, numAois + " AOI(s) selected", Toast.LENGTH_SHORT).show();
+                }
+            }
+            return true;
         });
 
-        // 2. When the image is clicked, package the coordinates and the URI into the result
-        previewImageView.setOnClickListener(v -> {
-            Toast.makeText(PreviewActivity.this, "AOI selected: (" + lastTouchX + ", " + lastTouchY + ")", Toast.LENGTH_SHORT).show();
-        });
         backButton.setOnClickListener(v -> {
             setResult(RESULT_CANCELED);
             finish();
@@ -51,10 +118,44 @@ public class PreviewActivity extends AppCompatActivity {
         sendButton.setOnClickListener(v -> {
             Intent resultIntent = new Intent();
             resultIntent.putExtra("image_uri", imageUri.toString());
-            resultIntent.putExtra("aoi_x", lastTouchX); // Add X to the intent
-            resultIntent.putExtra("aoi_y", lastTouchY);
+
+            // Normalize points to 512x512 before sending
+            ArrayList<Integer> normalizedAoiPoints = new ArrayList<>();
+            if (originalBitmap != null) {
+                for (int i = 0; i < rawAoiPoints.size(); i += 2) {
+                    int rawX = rawAoiPoints.get(i);
+                    int rawY = rawAoiPoints.get(i + 1);
+                    int normalizedX = (int) (rawX * (512.0 / originalBitmap.getWidth()));
+                    int normalizedY = (int) (rawY * (512.0 / originalBitmap.getHeight()));
+                    normalizedAoiPoints.add(normalizedX);
+                    normalizedAoiPoints.add(normalizedY);
+                }
+            }
+            resultIntent.putIntegerArrayListExtra("aoi_list", normalizedAoiPoints);
             setResult(RESULT_OK, resultIntent);
             finish();
         });
+
+        clearButton.setOnClickListener(v -> {
+            rawAoiPoints.clear();
+            mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
+            previewImageView.setImageBitmap(mutableBitmap);
+            Toast.makeText(PreviewActivity.this, "AOIs cleared", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void drawMarkers() {
+        mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        canvas = new Canvas(mutableBitmap);
+
+        float scale = (float)originalBitmap.getWidth() / 512.0f;
+        float radius = (augmentSize / 2.0f) * scale;
+
+        for (int i = 0; i < rawAoiPoints.size(); i += 2) {
+            float bmpX = rawAoiPoints.get(i);
+            float bmpY = rawAoiPoints.get(i + 1);
+            canvas.drawCircle(bmpX, bmpY, radius, paint);
+        }
+        previewImageView.setImageBitmap(mutableBitmap);
     }
 }

@@ -64,8 +64,7 @@ g_num_suggestions = 0
 g_augmented_image_data = bytearray()
 g_suggested_plant_name = ""
 g_generated_plant_image_data = bytearray()
-g_aoi_x=0
-g_aoi_y=0
+g_aoi_list = []
 g_augment_size = 100
 
 
@@ -683,14 +682,13 @@ class ImageUploadProgressChar(dbus.service.Object):
         pass
 
 
-class AoiXChar(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service, name="Integer"):
+class AoiListChar(dbus.service.Object):
+    def __init__(self, bus, index, uuid, flags, service, name="AoiList"):
         self.path = service.path + f"/char{index}"
         self.bus = bus
         self.uuid = uuid
         self.flags = flags
         self.service = service
-        self.value = 0
         self.name = name
         dbus.service.Object.__init__(self, bus, self.path)
 
@@ -708,48 +706,20 @@ class AoiXChar(dbus.service.Object):
 
     @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        global g_aoi_x
-        if len(value) == 4:
-            self.value = struct.unpack('<i', bytes(value))[0]
-            g_aoi_x = self.value
-            print(f"Set {self.name} to: {self.value}")
-        else:
-            print(
-                f"Received invalid byte array length for {self.name}: {len(value)}")
+        global g_aoi_list
+        try:
+            # Each integer is 4 bytes, so the total length must be a multiple of 4.
+            if len(value) % 4 != 0:
+                print(f"Received invalid byte array length for {self.name}: {len(value)}")
+                return
 
-class AoiYChar(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service, name="Integer"):
-        self.path = service.path + f"/char{index}"
-        self.bus = bus
-        self.uuid = uuid
-        self.flags = flags
-        self.service = service
-        self.value = 0
-        self.name = name
-        dbus.service.Object.__init__(self, bus, self.path)
+            # Unpack the byte array into a list of integers.
+            num_coords = len(value) // 4
+            g_aoi_list = list(struct.unpack(f'<{num_coords}i', bytes(value)))
+            print(f"Set {self.name} to: {g_aoi_list}")
 
-    def get_properties(self):
-        return {
-            "org.bluez.GattCharacteristic1": {
-                "UUID": self.uuid,
-                "Service": self.service.get_path(),
-                "Flags": self.flags,
-            }
-        }
-
-    def get_path(self):
-        return dbus.ObjectPath(self.path)
-
-    @dbus.service.method("org.bluez.GattCharacteristic1", in_signature="aya{sv}")
-    def WriteValue(self, value, options):
-        global g_aoi_y
-        if len(value) == 4:
-            self.value = struct.unpack('<i', bytes(value))[0]
-            g_aoi_y = self.value
-            print(f"Set {self.name} to: {self.value}")
-        else:
-            print(
-                f"Received invalid byte array length for {self.name}: {len(value)}")
+        except Exception as e:
+            print(f"Error processing AOI list: {e}")
 
 
 class PChar(dbus.service.Object):
@@ -1055,7 +1025,7 @@ def generate_chatgpt_response(prompt, llm_status_char):
 
 
 def generate_dalle_image_inpaint(image, plant_name):
-    global g_generated_plant_image_data,g_aoi_x,g_aoi_y, g_augment_size
+    global g_generated_plant_image_data, g_aoi_list, g_augment_size
     mask_size = g_augment_size
     print('plant name', plant_name)
     if not plant_name:
@@ -1063,13 +1033,26 @@ def generate_dalle_image_inpaint(image, plant_name):
         return
 
     try:
-
         print('Generating dalle image')
         mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
         draw = ImageDraw.Draw(mask)
-        # (x1,y1,x2,y2)
-        print (f'========== Masking {g_aoi_x} {g_aoi_y} {mask.size}')
-        draw.rectangle((g_aoi_x,g_aoi_y,g_aoi_x+mask_size, g_aoi_y+mask_size), fill=(0, 0, 0, 0))
+
+        # Iterate over the list of AOIs and draw a rectangle for each.
+        # The list is flattened, so we process it in pairs.
+        if len(g_aoi_list) > 1 and len(g_aoi_list) % 2 == 0:
+            for i in range(0, len(g_aoi_list), 2):
+                g_aoi_x = g_aoi_list[i]
+                g_aoi_y = g_aoi_list[i+1]
+                print(f'========== Masking {g_aoi_x}, {g_aoi_y} on {mask.size}')
+                draw.rectangle((g_aoi_x, g_aoi_y, g_aoi_x + mask_size, g_aoi_y + mask_size), fill=(0, 0, 0, 0))
+        else:
+             print("No AOI data or incomplete data provided.")
+             # draw a default mask in the center
+             center_x = (image.width - mask_size) // 2
+             center_y = (image.height - mask_size) // 2
+             draw.rectangle((center_x, center_y, center_x + mask_size, center_y + mask_size), fill=(0,0,0,0))
+
+
         img_bytes = io.BytesIO()
         image.convert("RGBA").save('./img.png', format="PNG")
         img_bytes.seek(0)
@@ -1085,7 +1068,6 @@ def generate_dalle_image_inpaint(image, plant_name):
                 size="512x512"  # Image resolution
             )
             # The generated image URL is in the response
-            image_url = response.data[0].url
             image_url = response.data[0].url
             print(f"Generated image URL: {image_url}")
 
@@ -1790,13 +1772,9 @@ def main():
                                                          "12345678-1234-5678-1234-56789abcdff5", ["write", "notify", "read"], service)
     service.characteristics.append(image_upload_progress_char)
 
-    aoi_x_char = AoiXChar(bus, 21,
-                                        "12345678-1234-5678-1234-56789abcdff6", ["write"], service, name="AOI X")
-    service.characteristics.append(aoi_x_char)
-
-    aoi_y_char = AoiYChar(bus, 22,
-                                        "12345678-1234-5678-1234-56789abcdff7", ["write"], service, name="AOI Y")
-    service.characteristics.append(aoi_y_char)
+    aoi_list_char = AoiListChar(bus, 21,
+                                        "12345678-1234-5678-1234-56789abcdff6", ["write"], service, name="AOI List")
+    service.characteristics.append(aoi_list_char)
 
     augment_size_char = AugmentSizeChar(bus, 23,
                                         "12345678-1234-5678-1234-56789abcdff8", ["read", "write"], service)

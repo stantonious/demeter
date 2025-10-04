@@ -117,6 +117,7 @@ public class MainActivity extends AppCompatActivity {
 
     private int numSuggestions = 1;
     private int plantType = 0;
+    private int augmentSize = 20;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -162,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 1) {
-            // Check if ALL permissions were granted. A simple check is to see if any were denied.
             boolean allGranted = true;
             for (int grantResult : grantResults) {
                 if (grantResult != PackageManager.PERMISSION_GRANTED) {
@@ -172,7 +172,6 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (allGranted) {
-                // Permissions have been granted, try to start the scan again.
                 startBleScan();
             } else {
                 Toast.makeText(this, "All permissions are required to scan for devices.", Toast.LENGTH_LONG).show();
@@ -198,15 +197,17 @@ public class MainActivity extends AppCompatActivity {
                 if (currentPhotoPath != null) {
                     Intent intent = new Intent(this, PreviewActivity.class);
                     intent.putExtra("image_uri", Uri.fromFile(new File(currentPhotoPath)).toString());
+                    intent.putExtra("augment_size", augmentSize);
                     startActivityForResult(intent, REQUEST_PREVIEW_IMAGE);
                 }
                 break;
             case REQUEST_PREVIEW_IMAGE:
                 if (data != null) {
                     String imageUriString = data.getStringExtra("image_uri");
-                    int aoiX = data.getIntExtra("aoi_x", 0);
-                    int aoiY = data.getIntExtra("aoi_y", 0);
-                    writeAoiCoordinates(aoiX, aoiY);
+                    ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
+                    if (aoiList != null && !aoiList.isEmpty()) {
+                        writeAoiList(aoiList);
+                    }
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
                         sendImage(imageUri);
@@ -231,21 +232,15 @@ public class MainActivity extends AppCompatActivity {
                     Intent data = result.getData();
                     String imageUriString = data.getStringExtra("image_uri");
 
-                    // *** THIS IS THE NEW PART ***
-                    // Check if AOI coordinates were sent back
-                    if (data.hasExtra("aoi_x") && data.hasExtra("aoi_y")) {
-                        int aoiX = data.getIntExtra("aoi_x", 0);
-                        int aoiY = data.getIntExtra("aoi_y", 0);
-
-                        // Now you can call your method with the coordinates
-                        writeAoiCoordinates(aoiX, aoiY);
+                    if (data.hasExtra("aoi_list")) {
+                        ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
+                        if (aoiList != null && !aoiList.isEmpty()) {
+                            writeAoiList(aoiList);
+                        }
                     }
-                    // *** END OF NEW PART ***
 
                     if (imageUriString != null) {
                         Uri imageUri = Uri.parse(imageUriString);
-                        // Now you can use the final image URI, for example, to send it via BLE
-                        // sendImageViaBle(imageUri);
                         Log.d(TAG, "Final image URI received: " + imageUri.toString());
                     }
                 }
@@ -279,33 +274,25 @@ public class MainActivity extends AppCompatActivity {
         currentPhotoPath = image.getAbsolutePath();
         return image;
     }
-// In MainActivity.java
 
     private void startBleScan() {
-        // Check for all required permissions at once
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 
-            // If any permission is missing, request them all.
             ActivityCompat.requestPermissions(this,
                     new String[]{
                             Manifest.permission.BLUETOOTH_SCAN,
                             Manifest.permission.BLUETOOTH_CONNECT,
                             Manifest.permission.ACCESS_FINE_LOCATION
                     },
-                    1); // Use your permission request code
-            return; // Stop here and wait for the user's response.
+                    1);
+            return;
         }
 
-        // --- If we get here, all permissions are granted ---
-
-        // 1. Ensure the scanner is initialized. This is the critical fix.
         if (bluetoothLeScanner == null) {
             bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
         }
-
-        // 2. Now it is safe to start the scan.
         scanLeDevice(true);
     }
 
@@ -376,9 +363,15 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             super.onDescriptorWrite(gatt, descriptor, status);
-            if (characteristicsToSubscribe != null && currentSubscriptionIndex < characteristicsToSubscribe.size()) {
-                currentSubscriptionIndex++;
+            currentSubscriptionIndex++;
+            if (currentSubscriptionIndex < characteristicsToSubscribe.size()) {
                 subscribeNextCharacteristic(gatt);
+            } else {
+                // All subscriptions are complete, now it's safe to write initial settings.
+                Log.d(TAG, "All characteristics subscribed. Writing initial settings.");
+                setNumSuggestions(numSuggestions);
+                setPlantType(plantType);
+                setAugmentSize(augmentSize);
             }
         }
         @Override
@@ -870,7 +863,7 @@ public class MainActivity extends AppCompatActivity {
                     fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
                     fragment.setAugmentedImageProgressText("Download Progress: " + progress + "%");
-                    fragment.setAugmentedImageProgress(progress);
+                    fragment.setUploadProgress(progress);
                 } else {
                     fragment.setAugmentedImageProgressVisibility(View.GONE);
                     fragment.setAugmentedImageProgressBarVisibility(View.GONE);
@@ -914,16 +907,32 @@ public class MainActivity extends AppCompatActivity {
         return currentStatus;
     }
 
-    // Setters for settings
     public void setNumSuggestions(int numSuggestions) {
         this.numSuggestions = numSuggestions;
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
+        if (characteristic != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
+            writeCharacteristicToQueue(characteristic, value);
+        }
     }
 
     public void setPlantType(int plantType) {
         this.plantType = plantType;
+        if (bluetoothGatt == null) return;
+        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
+        if (service == null) return;
+        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
+        if (characteristic != null) {
+            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantType).array();
+            writeCharacteristicToQueue(characteristic, value);
+        }
     }
 
     public void setAugmentSize(int size) {
+        this.augmentSize = size;
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
@@ -935,21 +944,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void writeAoiCoordinates(int x, int y) {
-        if (bluetoothGatt == null) return;
+    public void writeAoiList(List<Integer> aois) {
+        if (bluetoothGatt == null || aois == null || aois.isEmpty()) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
 
-        BluetoothGattCharacteristic aoiXChar = service.getCharacteristic(GattAttributes.UUID_AOI_X);
-        if (aoiXChar != null) {
-            byte[] valueX = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(x).array();
-            writeCharacteristicToQueue(aoiXChar, valueX);
-        }
-
-        BluetoothGattCharacteristic aoiYChar = service.getCharacteristic(GattAttributes.UUID_AOI_Y);
-        if (aoiYChar != null) {
-            byte[] valueY = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(y).array();
-            writeCharacteristicToQueue(aoiYChar, valueY);
+        BluetoothGattCharacteristic aoiListChar = service.getCharacteristic(GattAttributes.UUID_AOI_LIST);
+        if (aoiListChar != null) {
+            ByteBuffer byteBuffer = ByteBuffer.allocate(aois.size() * 4);
+            byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
+            for (int point : aois) {
+                byteBuffer.putInt(point);
+            }
+            byte[] value = byteBuffer.array();
+            writeCharacteristicToQueue(aoiListChar, value);
         }
     }
 }
