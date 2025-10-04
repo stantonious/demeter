@@ -1034,48 +1034,50 @@ def generate_dalle_image_inpaint(image, plant_name):
 
     try:
         print('Generating dalle image')
-        mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
-        draw = ImageDraw.Draw(mask)
 
+        cur_img = image
         # Iterate over the list of AOIs and draw a rectangle for each.
         # The list is flattened, so we process it in pairs.
         if len(g_aoi_list) > 1 and len(g_aoi_list) % 2 == 0:
-            for i in range(0, len(g_aoi_list), 2):
+            for idx,i in enumerate(range(0, len(g_aoi_list), 2)):
+                mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
+                draw = ImageDraw.Draw(mask)
                 g_aoi_x = g_aoi_list[i]
                 g_aoi_y = g_aoi_list[i+1]
                 print(f'========== Masking {g_aoi_x}, {g_aoi_y} on {mask.size}')
                 draw.rectangle((g_aoi_x, g_aoi_y, g_aoi_x + mask_size, g_aoi_y + mask_size), fill=(0, 0, 0, 0))
-        else:
-             print("No AOI data or incomplete data provided.")
-             # draw a default mask in the center
-             center_x = (image.width - mask_size) // 2
-             center_y = (image.height - mask_size) // 2
-             draw.rectangle((center_x, center_y, center_x + mask_size, center_y + mask_size), fill=(0,0,0,0))
 
+                img_bytes = io.BytesIO()
+                cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
+                img_bytes.seek(0)
+                mask.convert("RGBA").save(f'./mask-{idx}.png', format="PNG")
 
-        img_bytes = io.BytesIO()
-        image.convert("RGBA").save('./img.png', format="PNG")
-        img_bytes.seek(0)
-        mask.convert("RGBA").save('./mask.png', format="PNG")
+                with open(f'./img-{idx}.png', 'rb') as image_f, open(f'./mask-{idx}.png', 'rb') as mask_f:
+                    response = client.images.edit(
+                        model="dall-e-2",
+                        image=image_f,
+                        mask=mask_f,
+                        prompt=f"A high-quality image of a fully grown,health, flourishing {plant_name} {g_plant_type}"
+                                "plant that is fully planted and part of the natural landscape.  It looks as if this plant has been there for years."  
+                                #"The view point should be from 6 ft. above and at a 20 degree angle."  
+                                "The plant should be the focal point of the scene.",
+                        n=1,  # Number of images to generate
+                        size="512x512"  # Image resolution
+                    )
 
-        with open('./img.png', 'rb') as image_f, open('./mask.png', 'rb') as mask_f:
-            response = client.images.edit(
-                model="dall-e-2",
-                image=image_f,
-                mask=mask_f,
-                prompt=f"A clear, high-quality image of a fully grown {plant_name} {g_plant_type} plant that is firmly planted and part of the natural surroundings.  The view point should be from 6 ft. above and at a 20 degree angle.",
-                n=1,  # Number of images to generate
-                size="512x512"  # Image resolution
-            )
-            # The generated image URL is in the response
-            image_url = response.data[0].url
-            print(f"Generated image URL: {image_url}")
+                    # The generated image URL is in the response
+                    image_url = response.data[0].url
+                    print(f"Generated image URL: {image_url}")
 
-            # Download the image
-            with httpx.stream("GET", image_url) as r:
-                image_data = bytearray()
-                for chunk in r.iter_bytes():
-                    image_data.extend(chunk)
+                    # Download the image
+                    with httpx.stream("GET", image_url) as r:
+                        image_data = bytearray()
+                        for chunk in r.iter_bytes():
+                            image_data.extend(chunk)
+                
+
+                    cur_img = Image.open(io.BytesIO(image_data))
+                    cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
 
                 g_generated_plant_image_data = image_data
                 print("Successfully downloaded generated image.")
