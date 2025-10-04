@@ -219,9 +219,8 @@ public class MainActivity extends AppCompatActivity {
                 if (data != null) {
                     String imageUriString = data.getStringExtra("image_uri");
                     this.aoiList = data.getIntegerArrayListExtra("aoi_list");
-                    if (imageUriString != null) {
-                        Uri imageUri = Uri.parse(imageUriString);
-                        sendImage(imageUri);
+                    if (this.aoiList != null && !this.aoiList.isEmpty()) {
+                        handleImageStatusChange(2); // Enable Get Augmented Image button
                     }
                 }
                 break;
@@ -417,8 +416,6 @@ public class MainActivity extends AppCompatActivity {
                 handleLlmStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_STATUS)) {
                 handleImageStatusChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
-            } else if (characteristic.getUuid().equals(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS)) {
-                handleImageUploadProgressChange(characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0));
             } else {
                 updatePlotData(characteristic);
             }
@@ -449,23 +446,6 @@ public class MainActivity extends AppCompatActivity {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
                 fragment.setSuggestionText("Suggestion: Requesting...");
-            }
-        });
-    }
-
-    private void handleImageUploadProgressChange(int progress) {
-        runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                if (progress > 0 && progress < 100) {
-                    fragment.setUploadProgressVisibility(View.VISIBLE);
-                    fragment.setUploadProgressBarVisibility(View.VISIBLE);
-                    fragment.setUploadProgressText("Upload Progress: " + progress + "%");
-                    fragment.setUploadProgress(progress);
-                } else {
-                    fragment.setUploadProgressVisibility(View.GONE);
-                    fragment.setUploadProgressBarVisibility(View.GONE);
-                }
             }
         });
     }
@@ -542,8 +522,7 @@ public class MainActivity extends AppCompatActivity {
                 GattAttributes.UUID_K, GattAttributes.UUID_P, GattAttributes.UUID_N,
                 GattAttributes.UUID_PH, GattAttributes.UUID_HUMID, GattAttributes.UUID_SUN,
                 GattAttributes.UUID_MOISTURE, GattAttributes.UUID_LIGHT,
-                GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS,
-                GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS
+                GattAttributes.UUID_LLM_STATUS, GattAttributes.UUID_IMAGE_STATUS
         );
         currentSubscriptionIndex = 0;
         subscribeNextCharacteristic(gatt);
@@ -627,69 +606,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void sendImage(Uri imageUri) {
-        if (bluetoothGatt == null || imageUri == null) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-        final BluetoothGattCharacteristic imageChar = service.getCharacteristic(GattAttributes.UUID_IMAGE);
-        if (imageChar == null) return;
-        final BluetoothGattCharacteristic progressChar = service.getCharacteristic(GattAttributes.UUID_IMAGE_UPLOAD_PROGRESS);
-
-        runOnUiThread(() -> {
-            Toast.makeText(MainActivity.this, "Sending image...", Toast.LENGTH_SHORT).show();
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setUploadProgressVisibility(View.VISIBLE);
-                fragment.setUploadProgressBarVisibility(View.VISIBLE);
-                fragment.setUploadProgressText("Upload Progress: 0%");
-                fragment.setUploadProgress(0);
-            }
-        });
-
-        new Thread(() -> {
-            try {
-                InputStream inputStream = getContentResolver().openInputStream(imageUri);
-                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-
-                InputStream exifInputStream = getContentResolver().openInputStream(imageUri);
-                ExifInterface exifInterface = new ExifInterface(exifInputStream);
-                int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-                Matrix matrix = new Matrix();
-                switch (orientation) {
-                    case ExifInterface.ORIENTATION_ROTATE_90: matrix.postRotate(90); break;
-                    case ExifInterface.ORIENTATION_ROTATE_180: matrix.postRotate(180); break;
-                    case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
-                }
-                Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-                Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 512, 512, true);
-
-                ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
-                byte[] imageData = byteStream.toByteArray();
-                originalImage = imageData;
-                final int totalSize = imageData.length;
-
-                int chunkSize = 500;
-                for (int i = 0; i < totalSize; i += chunkSize) {
-                    int end = Math.min(totalSize, i + chunkSize);
-                    byte[] chunk = Arrays.copyOfRange(imageData, i, end);
-                    writeCharacteristicToQueue(imageChar, chunk);
-
-                    final int progress = (int) (((i + chunk.length) * 100.0f) / totalSize);
-                    if (progressChar != null) {
-                        byte[] progressValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(progress).array();
-                        writeCharacteristicToQueue(progressChar, progressValue);
-                    }
-                }
-                writeCharacteristicToQueue(imageChar, "EOT".getBytes());
-                runOnUiThread(() -> {
-                    Toast.makeText(MainActivity.this, "Image sent successfully.", Toast.LENGTH_SHORT).show();
-                });
-            } catch (IOException e) {
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to send image: " + e.getMessage(), Toast.LENGTH_LONG).show());
-            }
-        }).start();
-    }
 
     public void fetchAugmentedImage() {
         if (currentPhotoPath == null || aoiList == null || aoiList.isEmpty()) {
