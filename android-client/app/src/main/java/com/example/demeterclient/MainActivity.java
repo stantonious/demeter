@@ -244,10 +244,7 @@ public class MainActivity extends AppCompatActivity {
                     String imageUriString = data.getStringExtra("image_uri");
 
                     if (data.hasExtra("aoi_list")) {
-                        ArrayList<Integer> aoiList = data.getIntegerArrayListExtra("aoi_list");
-                        if (aoiList != null && !aoiList.isEmpty()) {
-                            writeAoiList(aoiList);
-                        }
+                        this.aoiList = data.getIntegerArrayListExtra("aoi_list");
                     }
 
                     if (imageUriString != null) {
