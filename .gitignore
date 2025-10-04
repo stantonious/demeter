@@ -7,5 +7,7 @@ build/
 *.jar
 *.png
 *.jpeg
+dist/
+*egg-info/
 
 
