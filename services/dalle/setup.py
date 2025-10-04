@@ -7,7 +7,7 @@ from distutils.core import setup
 
 version = '1.0'
 
-setup(name='feyrle_svc',
+setup(name='demeter_svc',
       version=version,
       install_requires=[
                         ],
@@ -16,5 +16,5 @@ setup(name='feyrle_svc',
       author='Bryan Staley',
       author_email='bryan.w.staley@gmail.com',
       scripts=['main.py'],
-      packages=['feyrle_svc'],
+      packages=['dalle_svc'],
       )

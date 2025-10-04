@@ -1,6 +1,6 @@
 #!python3
 
-from lib.feyrle_svc import routes,app  # routes import removed
+from lib.dalle_svc import routes,app  # routes import removed
 
 # Flask import removed as it's not directly used here
 import os

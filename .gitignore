@@ -9,5 +9,6 @@ build/
 *.jpeg
 dist/
 *egg-info/
+lib/
 
 

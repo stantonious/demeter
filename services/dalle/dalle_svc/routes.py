@@ -22,6 +22,7 @@ from PIL import Image, ImageDraw
 from google.cloud import storage, secretmanager
 import google_crc32c
 from openai import OpenAI
+import httpx
 
 # --- Constants ---
 GOOGLE_PROJECT_ID = os.environ.get("GOOGLE_PROJECT_ID", "69816494671")
@@ -55,8 +56,9 @@ if not logger.handlers:
     logger.addHandler(handler)
 
 # Google Cloud clients
-# storage_client = storage.Client()
-# storage_bucket = storage_client.bucket(db.bucket_name)
+storage_client = storage.Client()
+demeter_bucket_name = 'stantonious-demeter'
+demeter_bucket = storage_client.bucket(demeter_bucket_name)
 # feyrle_bucket = storage_client.bucket(db.feyrle_bucket_name)
 
 
@@ -120,40 +122,56 @@ def create_dalle():
 
         in_image = Image.open(request.files["scene_img"])
         try:
-            print("Generating dalle image")
-            mask = Image.new("RGBA", in_image.size, (0, 0, 0, 255))
-            draw = ImageDraw.Draw(mask)
-            # (x1,y1,x2,y2)
-            print(f"========== Masking {g_aoi_x} {g_aoi_y} {mask.size}")
-            bb = _get_bb(*aois[0], mask_size)
-            draw.rectangle(bb, fill=(0, 0, 0, 0))
-            img_bytes = io.BytesIO()
-            in_image.convert("RGBA").save("./img.png", format="PNG")
-            img_bytes.seek(0)
-            mask.convert("RGBA").save("./mask.png", format="PNG")
+            print('Generating dalle image')
 
-            with open("./img.png", "rb") as image_f, open("./mask.png", "rb") as mask_f:
-                response = client.images.edit(
-                    model="dall-e-2",
-                    image=image_f,
-                    mask=mask_f,
-                    prompt=f"A clear, high-quality image of a fully grown {plant_name} {g_plant_type} plant that is firmly planted and part of the natural surroundings.  The view point should be from 6 ft. above and at a 20 degree angle.",
-                    n=1,  # Number of images to generate
-                    size="512x512",  # Image resolution
-                )
-                # The generated image URL is in the response
-                image_url = response.data[0].url
-                print(f"Generated image URL: {image_url}")
+            cur_img = in_image
+            # Iterate over the list of AOIs and draw a rectangle for each.
+            # The list is flattened, so we process it in pairs.
+            for idx,aoi in enumerate(aois):
+                mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
+                draw = ImageDraw.Draw(mask)
+                bb = _get_bb(*aoi,mask_size)
+                print(f'========== Masking:{bb} size:{mask.size}')
+                draw.rectangle(bb, fill=(0, 0, 0, 0))
 
-                # Download the image
-                with httpx.stream("GET", image_url) as r:
-                    image_data = bytearray()
-                    for chunk in r.iter_bytes():
-                        image_data.extend(chunk)
+                img_bytes = io.BytesIO()
+                cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
+                img_bytes.seek(0)
+                mask.convert("RGBA").save(f'./mask-{idx}.png', format="PNG")
 
-                    g_generated_plant_image_data = image_data
-                    print("Successfully downloaded generated image.")
+                with open(f'./img-{idx}.png', 'rb') as image_f, open(f'./mask-{idx}.png', 'rb') as mask_f:
+                    response = oai_client.images.edit(
+                        model="dall-e-2",
+                        image=image_f,
+                        mask=mask_f,
+                        prompt=f"A high-quality image of a fully grown,health, flourishing {plant_name} {plant_type}"
+                                "plant that is fully planted and part of the natural landscape.  It looks as if this plant has been there for years."  
+                                #"The view point should be from 6 ft. above and at a 20 degree angle."  
+                                "The plant should be the focal point of the scene.",
+                        n=1,  # Number of images to generate
+                        size="512x512"  # Image resolution
+                    )
 
+                    # The generated image URL is in the response
+                    image_url = response.data[0].url
+                    print(f"Generated image URL: {image_url}")
+
+                    # Download the image
+                    with httpx.stream("GET", image_url) as r:
+                        image_data = bytearray()
+                        for chunk in r.iter_bytes():
+                            image_data.extend(chunk)
+            
+
+                    img_name =f'{productID_base}-{idx}.png'
+                    asset_uri = _construct_gcs_url(demeter_bucket_name, img_name)
+                    blob_full = demeter_bucket.blob(asset_uri)
+                    blob_full.upload_from_string(img_bytes, content_type="image/png")
+
+                    cur_img = Image.open(io.BytesIO(image_data))
+                    cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
+
+                    final_uri = asset_uri
         except Exception as e:
             return (
                 json.dumps({"success": False, "reason": f"Dalle error. {e}"}),
@@ -164,10 +182,7 @@ def create_dalle():
         json.dumps(
             {
                 "success": True,
-                "productIDs": productIDs,
-                "assetURIs": dalle_uris,
-                "characters": characters,
-                "prompt": final_prompt,
+                "assetURI": final_uri
             }
         ),
         200,
