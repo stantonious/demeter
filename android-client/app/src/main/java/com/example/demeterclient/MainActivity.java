@@ -638,7 +638,31 @@ public class MainActivity extends AppCompatActivity {
         String[] plantTypes = getResources().getStringArray(R.array.plant_types);
         String plantTypeStr = (plantType >= 0 && plantType < plantTypes.length) ? plantTypes[plantType] : "outdoor";
 
-        File imageFile = new File(currentPhotoPath);
+        byte[] imageData;
+        try {
+            Bitmap bitmap = BitmapFactory.decodeFile(currentPhotoPath);
+
+            InputStream exifInputStream = getContentResolver().openInputStream(Uri.fromFile(new File(currentPhotoPath)));
+            ExifInterface exifInterface = new ExifInterface(exifInputStream);
+            int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            Matrix matrix = new Matrix();
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90: matrix.postRotate(90); break;
+                case ExifInterface.ORIENTATION_ROTATE_180: matrix.postRotate(180); break;
+                case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
+            }
+            Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            Bitmap resizedBitmap = Bitmap.createScaledBitmap(rotatedBitmap, 1024, 1024, true);
+
+            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteStream);
+            imageData = byteStream.toByteArray();
+            originalImage = imageData; // Also update the original image for the slider
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to process image for upload", e);
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to read image file.", Toast.LENGTH_SHORT).show());
+            return;
+        }
 
         OkHttpClient client = new OkHttpClient();
 
@@ -658,8 +682,8 @@ public class MainActivity extends AppCompatActivity {
 
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("scene_img", imageFile.getName(),
-                        RequestBody.create(imageFile, MediaType.parse("image/jpeg")))
+                .addFormDataPart("scene_img", "scene.jpg",
+                        RequestBody.create(imageData, MediaType.parse("image/jpeg")))
                 .build();
 
         Request request = new Request.Builder()
