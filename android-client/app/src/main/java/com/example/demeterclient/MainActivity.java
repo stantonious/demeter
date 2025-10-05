@@ -424,7 +424,23 @@ public class MainActivity extends AppCompatActivity {
     };
 
     public void requestSuggestion() {
-        if (bluetoothGatt == null) return;
+        if (bluetoothGatt == null) {
+            // Offline mode
+            suggestionBuilder.setLength(0);
+            suggestionBuilder.append("general house plant");
+            runOnUiThread(() -> {
+                SuggestFragment fragment = getSuggestFragment();
+                if (fragment != null) {
+                    fragment.setSuggestionText("Suggestion: general house plant");
+                    fragment.enableTakePictureButton(true);
+                    fragment.enableGetAugmentedImageButton(true);
+                }
+                Toast.makeText(MainActivity.this, "Using offline suggestion.", Toast.LENGTH_SHORT).show();
+            });
+            return;
+        }
+
+        // Online mode
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
 
@@ -913,10 +929,6 @@ public class MainActivity extends AppCompatActivity {
                     break;
                 case CONNECTED:
                     drawableId = R.drawable.led_green;
-                    SuggestFragment suggestFragment = getSuggestFragment();
-                    if (suggestFragment != null) {
-                        suggestFragment.enableGetSuggestionButton(true);
-                    }
                     break;
                 case ERROR:
                     drawableId = R.drawable.led_red;
