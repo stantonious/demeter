@@ -613,11 +613,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        if (suggestionBuilder == null || suggestionBuilder.length() == 0) {
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Please get a suggestion first.", Toast.LENGTH_SHORT).show());
-            return;
-        }
-
         runOnUiThread(() -> {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
@@ -630,9 +625,14 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
 
-        String suggestion = suggestionBuilder.toString();
-        String[] words = suggestion.split("\\s+");
-        String plantName = words.length > 0 ? words[0].replaceAll("[^a-zA-Z]", "") : "plant";
+        String plantName;
+        if (suggestionBuilder == null || suggestionBuilder.length() == 0) {
+            plantName = "beautiful";
+        } else {
+            String suggestion = suggestionBuilder.toString();
+            String[] words = suggestion.split("\\s+");
+            plantName = words.length > 0 ? words[0].replaceAll("[^a-zA-Z]", "") : "plant";
+        }
 
 
         String[] plantTypes = getResources().getStringArray(R.array.plant_types);
