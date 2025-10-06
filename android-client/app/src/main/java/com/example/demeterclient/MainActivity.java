@@ -123,6 +123,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
     private ImageView ledIndicator;
     private ImageView feasibilityIcon;
+    private ImageView imageResultsIcon;
     private String feasibilityResult;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
@@ -163,6 +164,15 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             if (feasibilityResult != null && !feasibilityResult.isEmpty()) {
                 Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
                 intent.putExtra("feasibility_text", feasibilityResult);
+                startActivity(intent);
+            }
+        });
+
+        imageResultsIcon = findViewById(R.id.image_results_icon);
+        imageResultsIcon.setOnClickListener(v -> {
+            if (imageList != null && !imageList.isEmpty()) {
+                Intent intent = new Intent(MainActivity.this, ImageResultsActivity.class);
+                intent.putExtra("image_list", new ArrayList<>(imageList));
                 startActivity(intent);
             }
         });
@@ -731,14 +741,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         }
 
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setImageSliderVisibility(View.GONE);
-                fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressText("Generating image...");
-                fragment.setAugmentedImageProgress(50); // Using as an indeterminate indicator
-            }
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
 
@@ -868,11 +870,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         Request request = new Request.Builder().url(url).build();
 
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setAugmentedImageProgressText("Downloading image...");
-                fragment.setAugmentedImageProgress(75);
-            }
+            Toast.makeText(MainActivity.this, "Downloading image...", Toast.LENGTH_SHORT).show();
         });
 
         httpClient.newCall(request).enqueue(new Callback() {
@@ -881,11 +879,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 Log.e(TAG, "Failed to download augmented image", e);
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Failed to download image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setAugmentedImageProgressVisibility(View.GONE);
-                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                    }
                 });
             }
 
@@ -896,11 +889,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                     Log.e(TAG, "Failed to download augmented image: " + errorBody);
                     runOnUiThread(() -> {
                         Toast.makeText(MainActivity.this, "Failed to download image: " + response.message(), Toast.LENGTH_LONG).show();
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setAugmentedImageProgressVisibility(View.GONE);
-                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                        }
                     });
                     return;
                 }
@@ -973,14 +961,8 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 imageList.add(originalImage);
             }
             imageList.add(augmentedImage);
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.updateImageSlider();
-                fragment.setImageSliderVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressVisibility(View.GONE);
-                fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-            }
-            Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+            imageResultsIcon.setVisibility(View.VISIBLE);
+            Toast.makeText(MainActivity.this, "Augmented image received. Tap the image icon to view.", Toast.LENGTH_LONG).show();
         });
     }
 

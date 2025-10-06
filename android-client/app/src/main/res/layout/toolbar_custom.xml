@@ -27,6 +27,16 @@
         android:contentDescription="View Feasibility" />
 
     <ImageView
+        android:id="@+id/image_results_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="end"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/ic_image_results"
+        android:visibility="gone"
+        android:contentDescription="View Image Results" />
+
+    <ImageView
         android:id="@+id/led_indicator"
         android:layout_width="24dp"
         android:layout_height="24dp"

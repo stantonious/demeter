@@ -29,10 +29,6 @@ public class SuggestFragment extends Fragment {
     private ProgressBar uploadProgressBar;
     private Button takePictureButton;
     private Button getAugmentedImageButton;
-    private TextView augmentedImageProgressTextView;
-    private ProgressBar augmentedImageProgressBar;
-    private ViewPager2 imageSlider;
-    private ImageSliderAdapter imageSliderAdapter;
 
     private MainActivity mainActivity;
 
@@ -70,12 +66,6 @@ public class SuggestFragment extends Fragment {
         uploadProgressBar = view.findViewById(R.id.upload_progress_bar);
         takePictureButton = view.findViewById(R.id.take_picture_button);
         getAugmentedImageButton = view.findViewById(R.id.get_augmented_image_button);
-        augmentedImageProgressTextView = view.findViewById(R.id.augmented_image_progress_text_view);
-        augmentedImageProgressBar = view.findViewById(R.id.augmented_image_progress_bar);
-        imageSlider = view.findViewById(R.id.image_slider);
-
-        imageSliderAdapter = new ImageSliderAdapter(requireActivity(), mainActivity.imageList);
-        imageSlider.setAdapter(imageSliderAdapter);
 
         getSuggestionButton.setOnClickListener(v -> {
             mainActivity.requestSuggestion();
@@ -143,22 +133,6 @@ public class SuggestFragment extends Fragment {
         uploadProgressBar.setProgress(progress);
     }
 
-    public void setAugmentedImageProgressText(String text) {
-        augmentedImageProgressTextView.setText(text);
-    }
-
-    public void setAugmentedImageProgressVisibility(int visibility) {
-        augmentedImageProgressTextView.setVisibility(visibility);
-    }
-
-    public void setAugmentedImageProgressBarVisibility(int visibility) {
-        augmentedImageProgressBar.setVisibility(visibility);
-    }
-
-    public void setAugmentedImageProgress(int progress) {
-        augmentedImageProgressBar.setProgress(progress);
-    }
-
     public void enableGetSuggestionButton(boolean enabled) {
         getSuggestionButton.setEnabled(enabled);
     }
@@ -169,14 +143,6 @@ public class SuggestFragment extends Fragment {
 
     public void enableGetAugmentedImageButton(boolean enabled) {
         getAugmentedImageButton.setEnabled(enabled);
-    }
-
-    public void updateImageSlider() {
-        imageSliderAdapter.notifyDataSetChanged();
-    }
-
-    public void setImageSliderVisibility(int visibility) {
-        imageSlider.setVisibility(visibility);
     }
 
 }

@@ -30,6 +30,7 @@
         </activity>
         <activity android:name=".PreviewActivity" />
         <activity android:name=".FeasibilityActivity" />
+        <activity android:name=".ImageResultsActivity" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.example.demeterclient.fileprovider"
