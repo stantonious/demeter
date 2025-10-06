@@ -34,14 +34,6 @@
             android:visibility="gone" />
 
         <TextView
-            android:id="@+id/feasibility_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Feasibility Analysis: --"
-            android:visibility="gone" />
-
-        <TextView
             android:id="@+id/upload_progress_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -25,7 +25,6 @@ public class SuggestFragment extends Fragment {
     private Button getSuggestionButton;
     private TextView suggestionTextView;
     private Spinner suggestionSpinner;
-    private TextView feasibilityTextView;
     private TextView uploadProgressTextView;
     private ProgressBar uploadProgressBar;
     private Button takePictureButton;
@@ -67,7 +66,6 @@ public class SuggestFragment extends Fragment {
         getSuggestionButton = view.findViewById(R.id.get_suggestion_button);
         suggestionTextView = view.findViewById(R.id.suggestion_text_view);
         suggestionSpinner = view.findViewById(R.id.suggestion_spinner);
-        feasibilityTextView = view.findViewById(R.id.feasibility_text_view);
         uploadProgressTextView = view.findViewById(R.id.upload_progress_text_view);
         uploadProgressBar = view.findViewById(R.id.upload_progress_bar);
         takePictureButton = view.findViewById(R.id.take_picture_button);
@@ -181,12 +179,4 @@ public class SuggestFragment extends Fragment {
         imageSlider.setVisibility(visibility);
     }
 
-    public void setFeasibilityText(String text) {
-        if (text != null && !text.isEmpty()) {
-            feasibilityTextView.setText(text);
-            feasibilityTextView.setVisibility(View.VISIBLE);
-        } else {
-            feasibilityTextView.setVisibility(View.GONE);
-        }
-    }
 }

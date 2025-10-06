@@ -151,6 +151,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
         ledIndicator = findViewById(R.id.led_indicator);
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
@@ -159,6 +162,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         NavigationUI.setupWithNavController(navView, navController);
 
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            swipeRefreshLayout.setEnabled(destination.getId() == R.id.navigation_settings);
+        });
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (bluetoothGatt != null) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -1083,10 +1089,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
     private void requestFeasibilityAnalysis(String plantName) {
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setFeasibilityText("Feasibility Analysis: Requesting...");
-            }
+            Toast.makeText(MainActivity.this, "Requesting feasibility analysis...", Toast.LENGTH_SHORT).show();
         });
 
 
@@ -1169,10 +1172,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                         }
 
                         runOnUiThread(() -> {
-                            SuggestFragment fragment = getSuggestFragment();
-                            if (fragment != null) {
-                                fragment.setFeasibilityText(feasibilityText.toString());
-                            }
+                            Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
+                            intent.putExtra("feasibility_text", feasibilityText.toString());
+                            startActivity(intent);
                         });
                     } else {
                         String reason = json.getString("reason");
