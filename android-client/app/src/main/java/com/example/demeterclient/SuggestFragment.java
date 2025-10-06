@@ -66,7 +66,7 @@ public class SuggestFragment extends Fragment {
         });
 
         // Initially disable buttons
-        getSuggestionButton.setEnabled(false);
+        getSuggestionButton.setEnabled(true);
         takePictureButton.setEnabled(false);
         getAugmentedImageButton.setEnabled(false);
     }
@@ -128,11 +128,4 @@ public class SuggestFragment extends Fragment {
         imageSlider.setVisibility(visibility);
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (mainActivity != null && mainActivity.getCurrentConnectionStatus() == MainActivity.BleConnectionStatus.CONNECTED) {
-            getSuggestionButton.setEnabled(true);
-        }
-    }
 }
