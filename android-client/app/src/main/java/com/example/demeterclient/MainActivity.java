@@ -750,14 +750,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         } else {
             String suggestion = suggestionBuilder.toString();
             // Take the first line and remove leading list markers and numbers.
-            String firstLine = suggestion.split("\n")[0].replaceAll("^\\s*\\d*\\.\\s*|^\\s*[-*]\\s*", "").trim();
-            // Split into words and take the first one.
-            String[] words = firstLine.split("\\s+");
-            if (words.length > 0 && !words[0].isEmpty()) {
-                // Get the first word and remove any trailing non-alphanumeric characters.
-                plantName = words[0].replaceAll("[^a-zA-Z0-9]+$", "");
-            } else {
-                plantName = "plant"; // Default if parsing fails
+            plantName = suggestion.split("\n")[0].replaceAll("^\\s*\\d*\\.\\s*|^\\s*[-*]\\s*", "").trim();
+            if (plantName.isEmpty()) {
+                plantName = "plant"; // Fallback
             }
         }
 
