@@ -2,22 +2,17 @@
 Routes for the Demeter Dalle Service, handling DALL-E image generation and product updates.
 """
 
-import random
 import sys
 import os
-import numpy as np
 import io
 import json
-import urllib.parse
-import urllib.request
-import cv2
 from flask import request
+import urllib.request
 from flask_cors import cross_origin  # Removed CORS as it's handled in __init__
-from . import app, utils
 import logging
-from lib.heph_data import db, game_5e, srd  # auth removed
 import time
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
+from . import app, utils
 
 from google.cloud import storage, secretmanager
 import google_crc32c
@@ -41,8 +36,6 @@ MAX_IMAGES_PER_REQUEST = 4
 GCS_URL_FORMAT = "https://storage.googleapis.com/{bucket_name}/{blob_name}"
 
 
-
-
 # Logger setup (ensure it's configured once)
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -57,7 +50,7 @@ if not logger.handlers:
 
 # Google Cloud clients
 storage_client = storage.Client()
-demeter_bucket_name = 'stantonious-demeter'
+demeter_bucket_name = "stantonious-demeter"
 demeter_bucket = storage_client.bucket(demeter_bucket_name)
 # feyrle_bucket = storage_client.bucket(db.feyrle_bucket_name)
 
@@ -97,16 +90,17 @@ def _construct_gcs_url(bucket_name, blob_name):
 @cross_origin()
 def create_dalle():
     def _decode_aois(aois_list):
-        return [_n.split(",") for _n in aois_list]
+        return [tuple(map(int, _n.split(","))) for _n in aois_list]
 
     def _get_bb(x, y, s):
-        return int(x - (s / 2)), int(y - (s / 2)), int(x + (s / 2)), int(y + (s / 2))
+        return int(x - s / 2), int(y - s / 2), int(x + s / 2), int(y + s / 2)
 
-    """Creates DALL-E images ."""
+    print("args", request.args)
     aois = _decode_aois(request.args.getlist("aois"))
+    print("aois", aois)
     plant_name = request.args.get("plant_name")
     plant_type = request.args.get("plant_type")
-    mask_size = request.args.get("mask_size")
+    mask_size = int(request.args.get("mask_size"))
     productID_base = str(int(time.time()))
 
     api_key = _get_openai_api_key()
@@ -114,77 +108,66 @@ def create_dalle():
 
     if request.method == "POST":
         if "scene_img" not in request.files:
-            return (
-                json.dumps({"success": False, "reason": "No file provided."}),
-                500,
-                {"ContentType": "application/json"},
-            )
+            return json.dumps({"success": False, "reason": "No file provided."}), 500, {"ContentType": "application/json"}
 
-        in_image = Image.open(request.files["scene_img"])
+        in_image = Image.open(request.files["scene_img"]).convert("RGBA").resize((512, 512))
+
         try:
-            print('Generating dalle image')
-
             cur_img = in_image
-            # Iterate over the list of AOIs and draw a rectangle for each.
-            # The list is flattened, so we process it in pairs.
-            for idx,aoi in enumerate(aois):
-                mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
+            for idx, aoi in enumerate(aois):
+                bb = _get_bb(*aoi, mask_size)
+                print(f"AOI {idx}: Bounding box {bb}")
+
+                # Create binary alpha mask: transparent where we want edits, opaque elsewhere
+                mask = Image.new("L", cur_img.size, 255)
                 draw = ImageDraw.Draw(mask)
-                bb = _get_bb(*aoi,mask_size)
-                print(f'========== Masking:{bb} size:{mask.size}')
-                draw.rectangle(bb, fill=(0, 0, 0, 0))
+                draw.rectangle(bb, fill=0)
 
+                # Convert to RGBA with alpha channel
+                rgba_mask = Image.new("RGBA", cur_img.size)
+                rgba_mask.putalpha(mask)
+
+                # Prepare image and mask bytes
                 img_bytes = io.BytesIO()
-                cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
+                cur_img.save(img_bytes, format="PNG")
                 img_bytes.seek(0)
-                mask.convert("RGBA").save(f'./mask-{idx}.png', format="PNG")
+                img_bytes.name = "image.png"
 
-                with open(f'./img-{idx}.png', 'rb') as image_f, open(f'./mask-{idx}.png', 'rb') as mask_f:
-                    response = oai_client.images.edit(
-                        model="dall-e-2",
-                        image=image_f,
-                        mask=mask_f,
-                        prompt=f"A high-quality image of a fully grown,health, flourishing {plant_name} {plant_type}"
-                                "plant that is fully planted and part of the natural landscape.  It looks as if this plant has been there for years."  
-                                #"The view point should be from 6 ft. above and at a 20 degree angle."  
-                                "The plant should be the focal point of the scene.",
-                        n=1,  # Number of images to generate
-                        size="512x512"  # Image resolution
-                    )
+                mask_bytes = io.BytesIO()
+                rgba_mask.save(mask_bytes, format="PNG")
+                mask_bytes.seek(0)
+                mask_bytes.name = "mask.png"
 
-                    # The generated image URL is in the response
-                    image_url = response.data[0].url
-                    print(f"Generated image URL: {image_url}")
+                prompt = (
+                    f"A mature, vibrant {plant_name} {plant_type} plant in a natural scene with shadows cast onto the surrounding terrain. "
+                    "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
+                    "The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
+                    "Appears as a native resident of this landscape."
+                )
 
-                    # Download the image
-                    with httpx.stream("GET", image_url) as r:
-                        image_data = bytearray()
-                        for chunk in r.iter_bytes():
-                            image_data.extend(chunk)
-            
+                print ('prompt',prompt)
 
-                    img_name =f'{productID_base}-{idx}.png'
-                    asset_uri = _construct_gcs_url(demeter_bucket_name, img_name)
-                    blob_full = demeter_bucket.blob(asset_uri)
-                    blob_full.upload_from_string(img_bytes, content_type="image/png")
+                response = oai_client.images.edit(
+                    model="dall-e-2",
+                    image=img_bytes,
+                    mask=mask_bytes,
+                    prompt=prompt,
+                    n=1,
+                    size="512x512",
+                )
 
-                    cur_img = Image.open(io.BytesIO(image_data))
-                    cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
+                image_url = response.data[0].url
+                response_data = urllib.request.urlopen(image_url).read()
 
-                    final_uri = asset_uri
+                img_name = f"{productID_base}-{idx}.png"
+                asset_uri = _construct_gcs_url(demeter_bucket_name, img_name)
+                demeter_bucket.blob(img_name).upload_from_string(response_data, content_type="image/png")
+                demeter_bucket.blob("mask.png").upload_from_string(mask_bytes.getvalue(), content_type="image/png")
+
+                cur_img = Image.open(io.BytesIO(response_data))
+                final_uri = asset_uri
+
         except Exception as e:
-            return (
-                json.dumps({"success": False, "reason": f"Dalle error. {e}"}),
-                500,
-                {"ContentType": "application/json"},
-            )
-    return (
-        json.dumps(
-            {
-                "success": True,
-                "assetURI": final_uri
-            }
-        ),
-        200,
-        {"ContentType": "application/json"},
-    )
+            return json.dumps({"success": False, "reason": f"Dalle error. {e}"}), 500, {"ContentType": "application/json"}
+
+    return json.dumps({"success": True, "assetURI": final_uri}), 200, {"ContentType": "application/json"}
