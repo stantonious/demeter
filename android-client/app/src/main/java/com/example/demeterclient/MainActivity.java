@@ -77,7 +77,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SuggestFragment.OnSuggestionSelectedListener {
 
     private static final String TAG = "MainActivity";
     private static final long SCAN_PERIOD = 10000;
@@ -441,28 +441,104 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Online mode
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
+        requestPlantSuggestionFromApi();
+    }
 
-        writeQueue.clear();
-        isWriting = false;
-
-        BluetoothGattCharacteristic numSuggestionsChar = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
-        byte[] numValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
-        writeCharacteristicToQueue(numSuggestionsChar, numValue);
-
-        BluetoothGattCharacteristic plantTypeChar = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
-        byte[] plantTypeValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantType).array();
-        writeCharacteristicToQueue(plantTypeChar, plantTypeValue);
-
-        BluetoothGattCharacteristic suggestChar = service.getCharacteristic(GattAttributes.UUID_SUGGEST);
-        byte[] suggestValue = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0).array();
-        writeCharacteristicToQueue(suggestChar, suggestValue);
-
+    private void requestPlantSuggestionFromApi() {
         runOnUiThread(() -> {
             SuggestFragment fragment = getSuggestFragment();
             if (fragment != null) {
-                fragment.setSuggestionText("Suggestion: Requesting...");
+                fragment.setSuggestionText("Suggestion: Requesting from server...");
+            }
+        });
+
+        OkHttpClient client = new OkHttpClient();
+
+        // Get the latest sensor data or use defaults
+        float n_mgkg = nHistory.isEmpty() ? 0 : nHistory.get(nHistory.size() - 1);
+        float p_mgkg = pHistory.isEmpty() ? 0 : pHistory.get(pHistory.size() - 1);
+        float k_mgkg = kHistory.isEmpty() ? 0 : kHistory.get(kHistory.size() - 1);
+        float ph = phHistory.isEmpty() ? 7.0f : phHistory.get(phHistory.size() - 1);
+        float moisture = moistureHistory.isEmpty() ? 50 : moistureHistory.get(moistureHistory.size() - 1);
+        float sun_intensity = sunHistory.isEmpty() ? 50000 : sunHistory.get(sunHistory.size() - 1);
+        String[] plantTypes = getResources().getStringArray(R.array.plant_types);
+        String plantTypeStr = (plantType >= 0 && plantType < plantTypes.length) ? plantTypes[plantType] : "tbd";
+
+
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
+                .scheme("https")
+                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+                .addPathSegment("demeter")
+                .addPathSegment("plant")
+                .addPathSegment("suggest")
+                .addQueryParameter("n_mgkg", String.valueOf(n_mgkg))
+                .addQueryParameter("p_mgkg", String.valueOf(p_mgkg))
+                .addQueryParameter("k_mgkg", String.valueOf(k_mgkg))
+                .addQueryParameter("ph", String.valueOf(ph))
+                .addQueryParameter("moisture", String.valueOf(moisture))
+                .addQueryParameter("sun_intensity", String.valueOf(sun_intensity))
+                .addQueryParameter("lat", "39.5186") // Default lat
+                .addQueryParameter("lon", "-104.7614") // Default lon
+                .addQueryParameter("plant_type", plantTypeStr)
+                .addQueryParameter("max_plants", String.valueOf(numSuggestions));
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Plant suggestion API call failed", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to get suggestion: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    SuggestFragment fragment = getSuggestFragment();
+                    if (fragment != null) {
+                        fragment.setSuggestionText("Suggestion: Error");
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    String errorBody = response.body().string();
+                    Log.e(TAG, "Plant suggestion API error: " + errorBody);
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Failed to get suggestion: " + response.message(), Toast.LENGTH_LONG).show();
+                        SuggestFragment fragment = getSuggestFragment();
+                        if (fragment != null) {
+                            fragment.setSuggestionText("Suggestion: Server Error");
+                        }
+                    });
+                    return;
+                }
+
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject json = new JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        org.json.JSONArray suggestionsArray = json.getJSONArray("suggestions");
+                        List<String> suggestionsList = new ArrayList<>();
+                        for (int i = 0; i < suggestionsArray.length(); i++) {
+                            suggestionsList.add(suggestionsArray.getString(i));
+                        }
+                        runOnUiThread(() -> {
+                            SuggestFragment fragment = getSuggestFragment();
+                            if (fragment != null) {
+                                fragment.setSuggestions(suggestionsList);
+                            }
+                        });
+                    } else {
+                        String reason = json.getString("reason");
+                        Log.e(TAG, "Plant suggestion API returned error: " + reason);
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Suggestion failed: " + reason, Toast.LENGTH_LONG).show());
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse suggestion response", e);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
+                }
             }
         });
     }
@@ -991,4 +1067,122 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onSuggestionSelected(String plantName) {
+        suggestionBuilder.setLength(0);
+        suggestionBuilder.append(plantName);
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.enableTakePictureButton(true);
+            }
+        });
+        requestFeasibilityAnalysis(plantName);
+    }
+
+    private void requestFeasibilityAnalysis(String plantName) {
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.setFeasibilityText("Feasibility Analysis: Requesting...");
+            }
+        });
+
+        OkHttpClient client = new OkHttpClient();
+
+        float n_mgkg = nHistory.isEmpty() ? 0 : nHistory.get(nHistory.size() - 1);
+        float p_mgkg = pHistory.isEmpty() ? 0 : pHistory.get(pHistory.size() - 1);
+        float k_mgkg = kHistory.isEmpty() ? 0 : kHistory.get(kHistory.size() - 1);
+        float ph = phHistory.isEmpty() ? 7.0f : phHistory.get(phHistory.size() - 1);
+        float moisture = moistureHistory.isEmpty() ? 50 : moistureHistory.get(moistureHistory.size() - 1);
+        float sun_intensity = sunHistory.isEmpty() ? 50000 : sunHistory.get(sunHistory.size() - 1);
+
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
+                .scheme("https")
+                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+                .addPathSegment("demeter")
+                .addPathSegment("plant")
+                .addPathSegment("feasibility")
+                .addQueryParameter("plant_type", plantName)
+                .addQueryParameter("n_mgkg", String.valueOf(n_mgkg))
+                .addQueryParameter("p_mgkg", String.valueOf(p_mgkg))
+                .addQueryParameter("k_mgkg", String.valueOf(k_mgkg))
+                .addQueryParameter("ph", String.valueOf(ph))
+                .addQueryParameter("moisture", String.valueOf(moisture))
+                .addQueryParameter("sun_intensity", String.valueOf(sun_intensity))
+                .addQueryParameter("lat", "39.5186")
+                .addQueryParameter("lon", "-104.7614");
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Feasibility API call failed", e);
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Failed to get feasibility: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    String errorBody = response.body().string();
+                    Log.e(TAG, "Feasibility API error: " + errorBody);
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Failed to get feasibility: " + response.message(), Toast.LENGTH_LONG).show();
+                    });
+                    return;
+                }
+
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject json = new JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        JSONObject feasibility = json.getJSONObject("feasibility");
+                        StringBuilder feasibilityText = new StringBuilder();
+                        feasibilityText.append("Feasibility Score: ").append(feasibility.getDouble("feasibility_score")).append("\n\n");
+                        feasibilityText.append("Summary: ").append(feasibility.getString("analysis_summary")).append("\n\n");
+                        JSONObject details = feasibility.getJSONObject("detailed_analysis");
+                        feasibilityText.append("Soil: ").append(details.getString("soil")).append("\n\n");
+                        feasibilityText.append("pH: ").append(details.getString("ph")).append("\n\n");
+                        feasibilityText.append("Moisture: ").append(details.getString("moisture")).append("\n\n");
+                        feasibilityText.append("Sunlight: ").append(details.getString("sunlight")).append("\n\n");
+                        feasibilityText.append("Climate: ").append(details.getString("climate")).append("\n\n");
+
+                        JSONObject recommendations = feasibility.getJSONObject("recommendations");
+                        org.json.JSONArray amendments = recommendations.getJSONArray("amendments");
+                        feasibilityText.append("Recommended Amendments:\n");
+                        for (int i = 0; i < amendments.length(); i++) {
+                            feasibilityText.append("- ").append(amendments.getString(i)).append("\n");
+                        }
+                        feasibilityText.append("\n");
+
+                        org.json.JSONArray actions = recommendations.getJSONArray("actions");
+                        feasibilityText.append("Recommended Actions:\n");
+                        for (int i = 0; i < actions.length(); i++) {
+                            feasibilityText.append("- ").append(actions.getString(i)).append("\n");
+                        }
+
+                        runOnUiThread(() -> {
+                            SuggestFragment fragment = getSuggestFragment();
+                            if (fragment != null) {
+                                fragment.setFeasibilityText(feasibilityText.toString());
+                            }
+                        });
+                    } else {
+                        String reason = json.getString("reason");
+                        Log.e(TAG, "Feasibility API returned error: " + reason);
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Feasibility check failed: " + reason, Toast.LENGTH_LONG).show());
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse feasibility response", e);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
+                }
+            }
+        });
+    }
 }
