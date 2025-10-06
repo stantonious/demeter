@@ -823,11 +823,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 Log.e(TAG, "DALL-E service call failed", e);
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Failed to generate image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setAugmentedImageProgressVisibility(View.GONE);
-                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                    }
                 });
             }
 
@@ -838,11 +833,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                     Log.e(TAG, "DALL-E service error: " + errorBody);
                     runOnUiThread(() -> {
                         Toast.makeText(MainActivity.this, "Failed to generate image: " + response.message(), Toast.LENGTH_LONG).show();
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setAugmentedImageProgressVisibility(View.GONE);
-                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                        }
                     });
                     return;
                 }
