@@ -122,6 +122,8 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
     private ImageView ledIndicator;
+    private ImageView feasibilityIcon;
+    private String feasibilityResult;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -155,6 +157,15 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
         ledIndicator = findViewById(R.id.led_indicator);
+        feasibilityIcon = findViewById(R.id.feasibility_icon);
+
+        feasibilityIcon.setOnClickListener(v -> {
+            if (feasibilityResult != null && !feasibilityResult.isEmpty()) {
+                Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
+                intent.putExtra("feasibility_text", feasibilityResult);
+                startActivity(intent);
+            }
+        });
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -1171,10 +1182,10 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                             feasibilityText.append("- ").append(actions.getString(i)).append("\n");
                         }
 
+                        feasibilityResult = feasibilityText.toString();
                         runOnUiThread(() -> {
-                            Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
-                            intent.putExtra("feasibility_text", feasibilityText.toString());
-                            startActivity(intent);
+                            feasibilityIcon.setVisibility(View.VISIBLE);
+                            Toast.makeText(MainActivity.this, "Feasibility analysis complete. Tap the checkmark to view.", Toast.LENGTH_LONG).show();
                         });
                     } else {
                         String reason = json.getString("reason");
