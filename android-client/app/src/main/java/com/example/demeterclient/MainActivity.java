@@ -132,6 +132,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
     private int numSuggestions = 1;
     private int plantType = 0;
     private int augmentSize = 20;
+    private OkHttpClient httpClient;
     private ArrayList<Integer> aoiList;
 
     @Override
@@ -141,6 +142,12 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             currentPhotoPath = savedInstanceState.getString(KEY_PHOTO_PATH);
         }
         setContentView(R.layout.activity_main);
+
+        httpClient = new OkHttpClient.Builder()
+                .connectTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -164,6 +171,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             scanLeDevice(true);
             swipeRefreshLayout.setRefreshing(false);
         });
+
 
         handler = new Handler();
 
@@ -452,7 +460,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             }
         });
 
-        OkHttpClient client = new OkHttpClient();
 
         // Get the latest sensor data or use defaults
         float n_mgkg = nHistory.isEmpty() ? 0 : nHistory.get(nHistory.size() - 1);
@@ -487,7 +494,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 .get()
                 .build();
 
-        client.newCall(request).enqueue(new Callback() {
+        httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Plant suggestion API call failed", e);
@@ -765,11 +772,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             return;
         }
 
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(60, TimeUnit.SECONDS)
-                .writeTimeout(60, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .build();
 
         HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
                 .scheme("https")
@@ -796,7 +798,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 .post(requestBody)
                 .build();
 
-        client.newCall(request).enqueue(new Callback() {
+        httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "DALL-E service call failed", e);
@@ -846,7 +848,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
     }
 
     private void downloadAugmentedImage(String url) {
-        OkHttpClient client = new OkHttpClient();
         Request request = new Request.Builder().url(url).build();
 
         runOnUiThread(() -> {
@@ -857,7 +858,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             }
         });
 
-        client.newCall(request).enqueue(new Callback() {
+        httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Failed to download augmented image", e);
@@ -1088,7 +1089,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             }
         });
 
-        OkHttpClient client = new OkHttpClient();
 
         float n_mgkg = nHistory.isEmpty() ? 0 : nHistory.get(nHistory.size() - 1);
         float p_mgkg = pHistory.isEmpty() ? 0 : pHistory.get(pHistory.size() - 1);
@@ -1118,7 +1118,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 .get()
                 .build();
 
-        client.newCall(request).enqueue(new Callback() {
+        httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Feasibility API call failed", e);
