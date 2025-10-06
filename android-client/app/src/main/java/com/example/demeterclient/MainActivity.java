@@ -77,7 +77,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SuggestFragment.OnSuggestionSelectedListener {
 
     private static final String TAG = "MainActivity";
     private static final long SCAN_PERIOD = 10000;
@@ -520,18 +520,14 @@ public class MainActivity extends AppCompatActivity {
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
                         org.json.JSONArray suggestionsArray = json.getJSONArray("suggestions");
-                        StringBuilder suggestions = new StringBuilder();
+                        List<String> suggestionsList = new ArrayList<>();
                         for (int i = 0; i < suggestionsArray.length(); i++) {
-                            suggestions.append(suggestionsArray.getString(i)).append("\n");
+                            suggestionsList.add(suggestionsArray.getString(i));
                         }
-                        suggestionBuilder.setLength(0);
-                        suggestionBuilder.append(suggestions.toString().trim());
-
                         runOnUiThread(() -> {
                             SuggestFragment fragment = getSuggestFragment();
                             if (fragment != null) {
-                                fragment.setSuggestionText("Suggestion: " + suggestionBuilder.toString());
-                                fragment.enableTakePictureButton(true);
+                                fragment.setSuggestions(suggestionsList);
                             }
                         });
                     } else {
@@ -1071,4 +1067,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public void onSuggestionSelected(String plantName) {
+        suggestionBuilder.setLength(0);
+        suggestionBuilder.append(plantName);
+        runOnUiThread(() -> {
+            SuggestFragment fragment = getSuggestFragment();
+            if (fragment != null) {
+                fragment.enableTakePictureButton(true);
+            }
+        });
+    }
 }
