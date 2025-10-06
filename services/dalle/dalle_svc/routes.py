@@ -86,6 +86,56 @@ def _construct_gcs_url(bucket_name, blob_name):
     return GCS_URL_FORMAT.format(bucket_name=bucket_name, blob_name=blob_name)
 
 
+@app.route("/demeter/plant/suggest", methods=["GET"])
+@cross_origin()
+def suggest_plant():
+    """
+    Suggests plant types based on environmental parameters.
+    """
+    try:
+        # Extract parameters from request
+        n_mgkg = request.args.get("n_mgkg", default=0, type=float)
+        p_mgkg = request.args.get("p_mgkg", default=0, type=float)
+        k_mgkg = request.args.get("k_mgkg", default=0, type=float)
+        ph = request.args.get("ph", default=7.0, type=float)
+        moisture = request.args.get("moisture", default=50, type=float)
+        sun_intensity = request.args.get("sun_intensity", default=50000, type=float)
+        lat = request.args.get("lat", default=0.0, type=float)
+        lon = request.args.get("lon", default=0.0, type=float)
+        plant_type = request.args.get("plant_type", default="tbd", type=str)
+        max_plants = request.args.get("max_plants", default=3, type=int)
+
+        # Generate prompt
+        prompt = utils.generate_plant_prompt(
+            n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity, lat, lon, plant_type, max_plants
+        )
+
+        # Get API key and client
+        api_key = _get_openai_api_key()
+        if not api_key:
+            return json.dumps({"success": False, "reason": "Missing API key."}), 500
+
+        oai_client = OpenAI(api_key=api_key)
+
+        # Call OpenAI
+        completion = oai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        response = completion.choices[0].message.content
+
+        # Format and return response
+        suggestions = [s.strip() for s in response.strip().split("\n") if s.strip()]
+        return json.dumps({"success": True, "suggestions": suggestions}), 200
+
+    except Exception as e:
+        logger.error(f"Error in plant suggestion: {e}", exc_info=True)
+        return json.dumps({"success": False, "reason": "An internal error occurred."}), 500
+
+
 @app.route("/demeter/product/create", methods=["POST"])
 @cross_origin()
 def create_dalle():
