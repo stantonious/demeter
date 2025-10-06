@@ -140,6 +140,57 @@ def suggest_plant():
 
 
 
+@app.route("/demeter/plant/feasibility", methods=["GET"])
+@cross_origin()
+def plant_feasibility():
+    """
+    Provides a detailed feasibility analysis for growing a specific plant.
+    """
+    try:
+        # Extract parameters from request
+        plant_type = request.args.get("plant_type", type=str)
+        if not plant_type:
+            return json.dumps({"success": False, "reason": "Missing 'plant_type' parameter."}), 400
+
+        n_mgkg = request.args.get("n_mgkg", default=0, type=float)
+        p_mgkg = request.args.get("p_mgkg", default=0, type=float)
+        k_mgkg = request.args.get("k_mgkg", default=0, type=float)
+        ph = request.args.get("ph", default=7.0, type=float)
+        moisture = request.args.get("moisture", default=50, type=float)
+        sun_intensity = request.args.get("sun_intensity", default=50000, type=float)
+        lat = request.args.get("lat", default=0.0, type=float)
+        lon = request.args.get("lon", default=0.0, type=float)
+
+        # Generate prompt
+        prompt = utils.generate_feasibility_prompt(
+            plant_type, n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity, lat, lon
+        )
+
+        # Get API key and client
+        api_key = _get_openai_api_key()
+        if not api_key:
+            return json.dumps({"success": False, "reason": "Missing API key."}), 500
+
+        oai_client = OpenAI(api_key=api_key)
+
+        # Call OpenAI
+        completion = oai_client.chat.completions.create(
+            model="gpt-3.5-turbo-1106",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        response_data = json.loads(completion.choices[0].message.content)
+
+        return json.dumps({"success": True, "feasibility": response_data}), 200
+
+    except Exception as e:
+        logger.error(f"Error in plant feasibility: {e}", exc_info=True)
+        return json.dumps({"success": False, "reason": "An internal error occurred."}), 500
+
+
 @app.route("/demeter/product/create", methods=["POST"])
 @cross_origin()
 def create_dalle():
