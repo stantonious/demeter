@@ -243,12 +243,19 @@ def create_dalle():
                 mask_bytes.seek(0)
                 mask_bytes.name = "mask.png"
 
-                prompt = (
-                    f"A mature, vibrant {plant_name} {plant_type} plant in a natural scene with shadows cast onto the surrounding terrain. "
-                    "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
-                    "The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
-                    "Appears as a native resident of this landscape."
-                )
+                if idx == 0:
+                    prompt = (
+                        f"A mature, vibrant {plant_name} {plant_type} plant in a natural scene with shadows cast onto the surrounding terrain. "
+                        "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
+                        "The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
+                        "Appears as a native resident of this landscape."
+                    )
+                else:
+                    prompt = (
+                        f"Inpaint another {plant_name} {plant_type} plant of the same type as already in the image, "
+                        "maintaining a consistent style, lighting, and appearance. "
+                        "The new plant should look like it belongs with the others in the scene."
+                    )
 
                 print ('prompt',prompt)
 
