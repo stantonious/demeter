@@ -15,10 +15,16 @@ public class ImageResultsActivity extends AppCompatActivity {
 
         ViewPager2 imageSlider = findViewById(R.id.image_slider);
 
-        ArrayList<byte[]> imageList = (ArrayList<byte[]>) getIntent().getSerializableExtra("image_list");
-        if (imageList != null) {
+        List<byte[]> imageList = ImageDataHolder.getInstance().getImageList();
+        if (imageList != null && !imageList.isEmpty()) {
             ImageSliderAdapter adapter = new ImageSliderAdapter(this, imageList);
             imageSlider.setAdapter(adapter);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ImageDataHolder.getInstance().clearImageList();
     }
 }

@@ -171,8 +171,8 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         imageResultsIcon = findViewById(R.id.image_results_icon);
         imageResultsIcon.setOnClickListener(v -> {
             if (imageList != null && !imageList.isEmpty()) {
+                ImageDataHolder.getInstance().setImageList(new ArrayList<>(imageList));
                 Intent intent = new Intent(MainActivity.this, ImageResultsActivity.class);
-                intent.putExtra("image_list", new ArrayList<>(imageList));
                 startActivity(intent);
             }
         });
