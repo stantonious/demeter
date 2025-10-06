@@ -175,7 +175,7 @@ def plant_feasibility():
 
         # Call OpenAI
         completion = oai_client.chat.completions.create(
-            model="gpt-3.5-turbo-1106",
+            model="gpt-3.5-turbo",
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
