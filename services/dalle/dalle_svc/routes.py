@@ -88,18 +88,14 @@ def _construct_gcs_url(bucket_name, blob_name):
 
 
 
-@app.route("/demeter/plant/feasibility", methods=["GET"])
+@app.route("/demeter/plant/suggest", methods=["GET"])
 @cross_origin()
-def plant_feasibility():
+def suggest_plant():
     """
-    Provides a detailed feasibility analysis for growing a specific plant.
+    Suggests plant types based on environmental parameters.
     """
     try:
         # Extract parameters from request
-        plant_type = request.args.get("plant_type", type=str)
-        if not plant_type:
-            return json.dumps({"success": False, "reason": "Missing 'plant_type' parameter."}), 400
-
         n_mgkg = request.args.get("n_mgkg", default=0, type=float)
         p_mgkg = request.args.get("p_mgkg", default=0, type=float)
         k_mgkg = request.args.get("k_mgkg", default=0, type=float)
@@ -108,10 +104,12 @@ def plant_feasibility():
         sun_intensity = request.args.get("sun_intensity", default=50000, type=float)
         lat = request.args.get("lat", default=0.0, type=float)
         lon = request.args.get("lon", default=0.0, type=float)
+        plant_type = request.args.get("plant_type", default="tbd", type=str)
+        max_plants = request.args.get("max_plants", default=3, type=int)
 
         # Generate prompt
-        prompt = utils.generate_feasibility_prompt(
-            plant_type, n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity, lat, lon
+        prompt = utils.generate_plant_prompt(
+            n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity, lat, lon, plant_type, max_plants
         )
 
         # Get API key and client
@@ -123,20 +121,23 @@ def plant_feasibility():
 
         # Call OpenAI
         completion = oai_client.chat.completions.create(
-            model="gpt-3.5-turbo-1106",
-            response_format={"type": "json_object"},
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
+                {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt},
             ],
         )
-        response_data = json.loads(completion.choices[0].message.content)
+        response = completion.choices[0].message.content
 
-        return json.dumps({"success": True, "feasibility": response_data}), 200
+        # Format and return response
+        suggestions = [s.strip() for s in response.strip().split("\n") if s.strip()]
+        return json.dumps({"success": True, "suggestions": suggestions}), 200
 
     except Exception as e:
-        logger.error(f"Error in plant feasibility: {e}", exc_info=True)
+        logger.error(f"Error in plant suggestion: {e}", exc_info=True)
         return json.dumps({"success": False, "reason": "An internal error occurred."}), 500
+
+
 
 
 @app.route("/demeter/product/create", methods=["POST"])

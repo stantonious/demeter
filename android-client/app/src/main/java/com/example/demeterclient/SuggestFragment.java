@@ -1,15 +1,11 @@
 package com.example.demeterclient;
 
-import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ProgressBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -18,14 +14,10 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
-import java.util.List;
-
 public class SuggestFragment extends Fragment {
 
     private Button getSuggestionButton;
     private TextView suggestionTextView;
-    private Spinner suggestionSpinner;
-    private TextView feasibilityTextView;
     private TextView uploadProgressTextView;
     private ProgressBar uploadProgressBar;
     private Button takePictureButton;
@@ -36,22 +28,6 @@ public class SuggestFragment extends Fragment {
     private ImageSliderAdapter imageSliderAdapter;
 
     private MainActivity mainActivity;
-
-    public interface OnSuggestionSelectedListener {
-        void onSuggestionSelected(String plantName);
-    }
-    private OnSuggestionSelectedListener listener;
-
-    @Override
-    public void onAttach(@NonNull Context context) {
-        super.onAttach(context);
-        if (context instanceof OnSuggestionSelectedListener) {
-            listener = (OnSuggestionSelectedListener) context;
-        } else {
-            throw new RuntimeException(context.toString()
-                    + " must implement OnSuggestionSelectedListener");
-        }
-    }
 
     @Nullable
     @Override
@@ -66,8 +42,6 @@ public class SuggestFragment extends Fragment {
 
         getSuggestionButton = view.findViewById(R.id.get_suggestion_button);
         suggestionTextView = view.findViewById(R.id.suggestion_text_view);
-        suggestionSpinner = view.findViewById(R.id.suggestion_spinner);
-        feasibilityTextView = view.findViewById(R.id.feasibility_text_view);
         uploadProgressTextView = view.findViewById(R.id.upload_progress_text_view);
         uploadProgressBar = view.findViewById(R.id.upload_progress_bar);
         takePictureButton = view.findViewById(R.id.take_picture_button);
@@ -91,20 +65,6 @@ public class SuggestFragment extends Fragment {
             mainActivity.fetchAugmentedImage();
         });
 
-        suggestionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String selectedPlant = (String) parent.getItemAtPosition(position);
-                if (listener != null) {
-                    listener.onSuggestionSelected(selectedPlant);
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-            }
-        });
-
         // Initially disable buttons
         getSuggestionButton.setEnabled(true);
         takePictureButton.setEnabled(false);
@@ -114,19 +74,6 @@ public class SuggestFragment extends Fragment {
     // Public methods to be called from MainActivity
     public void setSuggestionText(String text) {
         suggestionTextView.setText(text);
-    }
-
-    public void setSuggestions(List<String> suggestions) {
-        if (getContext() != null && suggestions != null && !suggestions.isEmpty()) {
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_item, suggestions);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            suggestionSpinner.setAdapter(adapter);
-            suggestionSpinner.setVisibility(View.VISIBLE);
-            suggestionTextView.setVisibility(View.VISIBLE);
-        } else {
-            suggestionSpinner.setVisibility(View.GONE);
-            suggestionTextView.setText("No suggestions available.");
-        }
     }
 
     public void setUploadProgressText(String text) {
@@ -181,12 +128,4 @@ public class SuggestFragment extends Fragment {
         imageSlider.setVisibility(visibility);
     }
 
-    public void setFeasibilityText(String text) {
-        if (text != null && !text.isEmpty()) {
-            feasibilityTextView.setText(text);
-            feasibilityTextView.setVisibility(View.VISIBLE);
-        } else {
-            feasibilityTextView.setVisibility(View.GONE);
-        }
-    }
 }
