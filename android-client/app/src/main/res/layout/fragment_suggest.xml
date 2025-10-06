@@ -34,14 +34,6 @@
             android:visibility="gone" />
 
         <TextView
-            android:id="@+id/feasibility_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Feasibility Analysis: --"
-            android:visibility="gone" />
-
-        <TextView
             android:id="@+id/upload_progress_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -76,29 +68,6 @@
                 android:layout_marginStart="16dp"
                 android:text="Get Augmented Image" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/augmented_image_progress_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Download Progress: 0%"
-            android:visibility="gone" />
-
-        <ProgressBar
-            android:id="@+id/augmented_image_progress_bar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:visibility="gone" />
-
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/image_slider"
-            android:layout_width="match_parent"
-            android:layout_height="512dp"
-            android:layout_marginTop="16dp"
-            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>

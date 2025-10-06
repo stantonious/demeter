@@ -122,6 +122,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
     private ImageView ledIndicator;
+    private ImageView feasibilityIcon;
+    private ImageView imageResultsIcon;
+    private String feasibilityResult;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
     private int llmOffset = 1;
@@ -151,7 +154,28 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false);
+        }
         ledIndicator = findViewById(R.id.led_indicator);
+        feasibilityIcon = findViewById(R.id.feasibility_icon);
+
+        feasibilityIcon.setOnClickListener(v -> {
+            if (feasibilityResult != null && !feasibilityResult.isEmpty()) {
+                Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
+                intent.putExtra("feasibility_text", feasibilityResult);
+                startActivity(intent);
+            }
+        });
+
+        imageResultsIcon = findViewById(R.id.image_results_icon);
+        imageResultsIcon.setOnClickListener(v -> {
+            if (imageList != null && !imageList.isEmpty()) {
+                ImageDataHolder.getInstance().setImageList(new ArrayList<>(imageList));
+                Intent intent = new Intent(MainActivity.this, ImageResultsActivity.class);
+                startActivity(intent);
+            }
+        });
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -159,6 +183,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         NavigationUI.setupWithNavController(navView, navController);
 
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            swipeRefreshLayout.setEnabled(destination.getId() == R.id.navigation_settings);
+        });
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (bluetoothGatt != null) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -714,14 +741,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         }
 
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setImageSliderVisibility(View.GONE);
-                fragment.setAugmentedImageProgressVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressBarVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressText("Generating image...");
-                fragment.setAugmentedImageProgress(50); // Using as an indeterminate indicator
-            }
             Toast.makeText(this, "Generating and fetching augmented image...", Toast.LENGTH_LONG).show();
         });
 
@@ -731,14 +750,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         } else {
             String suggestion = suggestionBuilder.toString();
             // Take the first line and remove leading list markers and numbers.
-            String firstLine = suggestion.split("\n")[0].replaceAll("^\\s*\\d*\\.\\s*|^\\s*[-*]\\s*", "").trim();
-            // Split into words and take the first one.
-            String[] words = firstLine.split("\\s+");
-            if (words.length > 0 && !words[0].isEmpty()) {
-                // Get the first word and remove any trailing non-alphanumeric characters.
-                plantName = words[0].replaceAll("[^a-zA-Z0-9]+$", "");
-            } else {
-                plantName = "plant"; // Default if parsing fails
+            plantName = suggestion.split("\n")[0].replaceAll("^\\s*\\d*\\.\\s*|^\\s*[-*]\\s*", "").trim();
+            if (plantName.isEmpty()) {
+                plantName = "plant"; // Fallback
             }
         }
 
@@ -804,11 +818,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 Log.e(TAG, "DALL-E service call failed", e);
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Failed to generate image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setAugmentedImageProgressVisibility(View.GONE);
-                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                    }
                 });
             }
 
@@ -819,11 +828,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                     Log.e(TAG, "DALL-E service error: " + errorBody);
                     runOnUiThread(() -> {
                         Toast.makeText(MainActivity.this, "Failed to generate image: " + response.message(), Toast.LENGTH_LONG).show();
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setAugmentedImageProgressVisibility(View.GONE);
-                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                        }
                     });
                     return;
                 }
@@ -851,11 +855,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
         Request request = new Request.Builder().url(url).build();
 
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setAugmentedImageProgressText("Downloading image...");
-                fragment.setAugmentedImageProgress(75);
-            }
+            Toast.makeText(MainActivity.this, "Downloading image...", Toast.LENGTH_SHORT).show();
         });
 
         httpClient.newCall(request).enqueue(new Callback() {
@@ -864,11 +864,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 Log.e(TAG, "Failed to download augmented image", e);
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "Failed to download image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    SuggestFragment fragment = getSuggestFragment();
-                    if (fragment != null) {
-                        fragment.setAugmentedImageProgressVisibility(View.GONE);
-                        fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                    }
                 });
             }
 
@@ -879,11 +874,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                     Log.e(TAG, "Failed to download augmented image: " + errorBody);
                     runOnUiThread(() -> {
                         Toast.makeText(MainActivity.this, "Failed to download image: " + response.message(), Toast.LENGTH_LONG).show();
-                        SuggestFragment fragment = getSuggestFragment();
-                        if (fragment != null) {
-                            fragment.setAugmentedImageProgressVisibility(View.GONE);
-                            fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-                        }
                     });
                     return;
                 }
@@ -956,14 +946,8 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 imageList.add(originalImage);
             }
             imageList.add(augmentedImage);
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.updateImageSlider();
-                fragment.setImageSliderVisibility(View.VISIBLE);
-                fragment.setAugmentedImageProgressVisibility(View.GONE);
-                fragment.setAugmentedImageProgressBarVisibility(View.GONE);
-            }
-            Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
+            imageResultsIcon.setVisibility(View.VISIBLE);
+            Toast.makeText(MainActivity.this, "Augmented image received. Tap the image icon to view.", Toast.LENGTH_LONG).show();
         });
     }
 
@@ -1083,10 +1067,7 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
 
     private void requestFeasibilityAnalysis(String plantName) {
         runOnUiThread(() -> {
-            SuggestFragment fragment = getSuggestFragment();
-            if (fragment != null) {
-                fragment.setFeasibilityText("Feasibility Analysis: Requesting...");
-            }
+            Toast.makeText(MainActivity.this, "Requesting feasibility analysis...", Toast.LENGTH_SHORT).show();
         });
 
 
@@ -1168,11 +1149,10 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                             feasibilityText.append("- ").append(actions.getString(i)).append("\n");
                         }
 
+                        feasibilityResult = feasibilityText.toString();
                         runOnUiThread(() -> {
-                            SuggestFragment fragment = getSuggestFragment();
-                            if (fragment != null) {
-                                fragment.setFeasibilityText(feasibilityText.toString());
-                            }
+                            feasibilityIcon.setVisibility(View.VISIBLE);
+                            Toast.makeText(MainActivity.this, "Feasibility analysis complete. Tap the checkmark to view.", Toast.LENGTH_LONG).show();
                         });
                     } else {
                         String reason = json.getString("reason");

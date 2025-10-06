@@ -25,15 +25,10 @@ public class SuggestFragment extends Fragment {
     private Button getSuggestionButton;
     private TextView suggestionTextView;
     private Spinner suggestionSpinner;
-    private TextView feasibilityTextView;
     private TextView uploadProgressTextView;
     private ProgressBar uploadProgressBar;
     private Button takePictureButton;
     private Button getAugmentedImageButton;
-    private TextView augmentedImageProgressTextView;
-    private ProgressBar augmentedImageProgressBar;
-    private ViewPager2 imageSlider;
-    private ImageSliderAdapter imageSliderAdapter;
 
     private MainActivity mainActivity;
 
@@ -67,17 +62,10 @@ public class SuggestFragment extends Fragment {
         getSuggestionButton = view.findViewById(R.id.get_suggestion_button);
         suggestionTextView = view.findViewById(R.id.suggestion_text_view);
         suggestionSpinner = view.findViewById(R.id.suggestion_spinner);
-        feasibilityTextView = view.findViewById(R.id.feasibility_text_view);
         uploadProgressTextView = view.findViewById(R.id.upload_progress_text_view);
         uploadProgressBar = view.findViewById(R.id.upload_progress_bar);
         takePictureButton = view.findViewById(R.id.take_picture_button);
         getAugmentedImageButton = view.findViewById(R.id.get_augmented_image_button);
-        augmentedImageProgressTextView = view.findViewById(R.id.augmented_image_progress_text_view);
-        augmentedImageProgressBar = view.findViewById(R.id.augmented_image_progress_bar);
-        imageSlider = view.findViewById(R.id.image_slider);
-
-        imageSliderAdapter = new ImageSliderAdapter(requireActivity(), mainActivity.imageList);
-        imageSlider.setAdapter(imageSliderAdapter);
 
         getSuggestionButton.setOnClickListener(v -> {
             mainActivity.requestSuggestion();
@@ -145,22 +133,6 @@ public class SuggestFragment extends Fragment {
         uploadProgressBar.setProgress(progress);
     }
 
-    public void setAugmentedImageProgressText(String text) {
-        augmentedImageProgressTextView.setText(text);
-    }
-
-    public void setAugmentedImageProgressVisibility(int visibility) {
-        augmentedImageProgressTextView.setVisibility(visibility);
-    }
-
-    public void setAugmentedImageProgressBarVisibility(int visibility) {
-        augmentedImageProgressBar.setVisibility(visibility);
-    }
-
-    public void setAugmentedImageProgress(int progress) {
-        augmentedImageProgressBar.setProgress(progress);
-    }
-
     public void enableGetSuggestionButton(boolean enabled) {
         getSuggestionButton.setEnabled(enabled);
     }
@@ -173,20 +145,4 @@ public class SuggestFragment extends Fragment {
         getAugmentedImageButton.setEnabled(enabled);
     }
 
-    public void updateImageSlider() {
-        imageSliderAdapter.notifyDataSetChanged();
-    }
-
-    public void setImageSliderVisibility(int visibility) {
-        imageSlider.setVisibility(visibility);
-    }
-
-    public void setFeasibilityText(String text) {
-        if (text != null && !text.isEmpty()) {
-            feasibilityTextView.setText(text);
-            feasibilityTextView.setVisibility(View.VISIBLE);
-        } else {
-            feasibilityTextView.setVisibility(View.GONE);
-        }
-    }
 }

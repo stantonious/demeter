@@ -20,7 +20,8 @@
         android:theme="@style/Theme.DemeterClient">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -28,6 +29,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".PreviewActivity" />
+        <activity android:name=".FeasibilityActivity" />
+        <activity android:name=".ImageResultsActivity" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.example.demeterclient.fileprovider"
