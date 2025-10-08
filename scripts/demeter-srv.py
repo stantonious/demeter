@@ -11,19 +11,14 @@ import numpy as np
 import serial
 import struct
 import RPi.GPIO as GPIO
-from openai import OpenAI
 from ollama import generate
 import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
-import adafruit_bh1750
-from config import OPENAI_API_KEY
 from PIL import Image, ImageDraw
 import io
 import httpx
-
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
@@ -979,151 +974,6 @@ def generate_ollama_response(prompt, llm_status_char):
         llm_status_char.set_status(2)  # Ready
 
 
-def generate_chatgpt_response(prompt, llm_status_char):
-    global current_llm_response, is_generating, g_suggested_plant_name
-    if is_generating:
-        return
-
-    is_generating = True
-    llm_status_char.set_status(1)  # Generating
-    print('starting openai req in background')
-    start_time = time.time()
-
-    counter_thread = threading.Thread(
-        target=update_generating_status, args=(start_time, g_llm_prompt))
-    counter_thread.daemon = True
-    counter_thread.start()
-
-    try:
-        completion = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        response = completion.choices[0].message.content
-        current_llm_response = response
-        print('got openai res in background:', current_llm_response)
-
-        # Parse and store the first suggested plant name
-        lines = response.split('\n')
-        for line in lines:
-            line = line.strip()
-            # if line.startswith(('-', '*')):
-            if True:
-                plant_name = line.lstrip('*- ').strip()
-                g_suggested_plant_name = plant_name
-                print(f"Stored suggested plant name: {g_suggested_plant_name}")
-                break  # Found the first one
-    except Exception as e:
-        print(f"Error in openai generation: {e}")
-        current_llm_response = "Error generating response."
-    finally:
-        is_generating = False
-        llm_status_char.set_status(2)  # Ready
-
-
-def generate_dalle_image_inpaint(image, plant_name):
-    global g_generated_plant_image_data, g_aoi_list, g_augment_size
-    mask_size = g_augment_size
-    print('plant name', plant_name)
-    if not plant_name:
-        print("No plant name available to generate an image.")
-        return
-
-    try:
-        print('Generating dalle image')
-
-        cur_img = image
-        # Iterate over the list of AOIs and draw a rectangle for each.
-        # The list is flattened, so we process it in pairs.
-        if len(g_aoi_list) > 1 and len(g_aoi_list) % 2 == 0:
-            for idx,i in enumerate(range(0, len(g_aoi_list), 2)):
-                mask = Image.new("RGBA", image.size, (0, 0, 0, 255))
-                draw = ImageDraw.Draw(mask)
-                g_aoi_x = g_aoi_list[i]
-                g_aoi_y = g_aoi_list[i+1]
-                print(f'========== Masking {g_aoi_x}, {g_aoi_y} on {mask.size}')
-                draw.rectangle((g_aoi_x, g_aoi_y, g_aoi_x + mask_size, g_aoi_y + mask_size), fill=(0, 0, 0, 0))
-
-                img_bytes = io.BytesIO()
-                cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
-                img_bytes.seek(0)
-                mask.convert("RGBA").save(f'./mask-{idx}.png', format="PNG")
-
-                with open(f'./img-{idx}.png', 'rb') as image_f, open(f'./mask-{idx}.png', 'rb') as mask_f:
-                    response = client.images.edit(
-                        model="dall-e-2",
-                        image=image_f,
-                        mask=mask_f,
-                        prompt=f"A high-quality image of a fully grown,health, flourishing {plant_name} {g_plant_type}"
-                                "plant that is fully planted and part of the natural landscape.  It looks as if this plant has been there for years."  
-                                #"The view point should be from 6 ft. above and at a 20 degree angle."  
-                                "The plant should be the focal point of the scene.",
-                        n=1,  # Number of images to generate
-                        size="512x512"  # Image resolution
-                    )
-
-                    # The generated image URL is in the response
-                    image_url = response.data[0].url
-                    print(f"Generated image URL: {image_url}")
-
-                    # Download the image
-                    with httpx.stream("GET", image_url) as r:
-                        image_data = bytearray()
-                        for chunk in r.iter_bytes():
-                            image_data.extend(chunk)
-                
-
-                    cur_img = Image.open(io.BytesIO(image_data))
-                    cur_img.convert("RGBA").save(f'./img-{idx}.png', format="PNG")
-
-                g_generated_plant_image_data = image_data
-                print("Successfully downloaded generated image.")
-
-    except Exception as e:
-        print(f"Error generating or downloading DALL-E image: {e}")
-
-
-def generate_dalle_image(plant_name):
-    global g_generated_plant_image_data
-    if not plant_name:
-        print("No plant name available to generate an image.")
-        return
-
-    try:
-        print(f"Generating DALL-E image for: {plant_name}")
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=f"A clear, high-quality image of a {plant_name} plant on a transparent background.",
-            size="1024x1024",
-            quality="standard",
-            n=1,
-        )
-        image_url = response.data[0].url
-        print(f"Generated image URL: {image_url}")
-
-        # Download the image
-        with httpx.stream("GET", image_url) as r:
-            image_data = bytearray()
-            for chunk in r.iter_bytes():
-                image_data.extend(chunk)
-            g_generated_plant_image_data = image_data
-            print("Successfully downloaded generated image.")
-
-    except Exception as e:
-        print(f"Error generating or downloading DALL-E image: {e}")
-
-
-def generate_llm_response(prompt, llm_status_char):
-    generate_chatgpt_response(prompt, llm_status_char)
-    # if g_llm_backend == 1:
-    #    generate_chatgpt_response(prompt, llm_status_char)
-    # else:
-    #    generate_ollama_response(prompt, llm_status_char)
-
-
 location_lat = "39.5186"
 location_lon = "-104.7614"
 sun_amount = "6"
@@ -1582,13 +1432,34 @@ class ADSSensor(threading.Thread):
             time.sleep(self.duty_cycle_delay)
 
 
+BH1750_ADDR = 0x23  # or 0x5C depending on ADDR pin
 class BH1750Sensor(threading.Thread):
     def __init__(self):
         super().__init__()
         self.duty_cycle_delay = .05
         self.running = True
         self.i2c = busio.I2C(board.SCL, board.SDA)
-        self.sensor = adafruit_bh1750.BH1750(self.i2c)
+
+    def read_lux(self, addr=BH1750_ADDR):
+        # BH1750 commands
+        POWER_ON = 0x01
+        RESET = 0x07
+        CONTINUOUS_HIGH_RES_MODE = 0x10  # 1 lx resolution, 120ms
+        # Power on and reset
+        self.i2c.writeto(addr, bytes([POWER_ON]))
+        self.i2c.writeto(addr, bytes([RESET]))
+        time.sleep(0.01)
+
+        # Start measurement
+        self.i2c.writeto(addr, bytes([CONTINUOUS_HIGH_RES_MODE]))
+        time.sleep(0.18)  # Wait for measurement
+
+        # Read 2 bytes
+        result = bytearray(2)
+        self.i2c.readfrom_into(addr, result)
+        raw = (result[0] << 8) | result[1]
+        lux = raw / 1.2
+        return lux
 
     def stop(self):
         self.running = False
@@ -1596,7 +1467,8 @@ class BH1750Sensor(threading.Thread):
     def duty_cycle(self):
         global g_light_val
         try:
-            g_light_val = self.sensor.lux
+            g_light_val = self.read_lux()
+
         except Exception as e:
             print(f"BH1750 sensor error: {e}")
 
@@ -1643,7 +1515,7 @@ class NpkSensor(threading.Thread):
         global pot_val
         global phr_val
         if len(response) < 9:
-            # print("Incomplete response:", response.hex())
+            print("Incomplete response:", response.hex())
             return
 
         byte_count = response[2]
@@ -1656,9 +1528,9 @@ class NpkSensor(threading.Thread):
         phr_val = struct.unpack(">H", npk_raw[2:4])[0]
         pot_val = struct.unpack(">H", npk_raw[4:6])[0]
 
-        # print(f"Nitrogen:   {nit_val} mg/kg")
-        # print(f"Phosphorus: {phr_val} mg/kg")
-        # print(f"Potassium:  {pot_val} mg/kg")
+        print(f"Nitrogen:   {nit_val} mg/kg")
+        print(f"Phosphorus: {phr_val} mg/kg")
+        print(f"Potassium:  {pot_val} mg/kg")
 
     def read_npk(self):
         try:

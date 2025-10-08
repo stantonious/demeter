@@ -1,10 +1,9 @@
 numpy
 dbus-python
-PyGObject
 pyserial
 ollama
 adafruit-circuitpython-ads1x15
-adafruit_bh1750
+smbus2
 adafruit-blinka
 RPi.GPIO
 smbus2
