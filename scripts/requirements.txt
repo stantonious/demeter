@@ -4,4 +4,8 @@ PyGObject
 pyserial
 ollama
 adafruit-circuitpython-ads1x15
+adafruit_bh1750
+adafruit-blinka
+RPi.GPIO
+smbus2
 Pillow
