@@ -1528,9 +1528,9 @@ class NpkSensor(threading.Thread):
         phr_val = struct.unpack(">H", npk_raw[2:4])[0]
         pot_val = struct.unpack(">H", npk_raw[4:6])[0]
 
-        print(f"Nitrogen:   {nit_val} mg/kg")
-        print(f"Phosphorus: {phr_val} mg/kg")
-        print(f"Potassium:  {pot_val} mg/kg")
+        #print(f"Nitrogen:   {nit_val} mg/kg")
+        #print(f"Phosphorus: {phr_val} mg/kg")
+        #print(f"Potassium:  {pot_val} mg/kg")
 
     def read_npk(self):
         try:

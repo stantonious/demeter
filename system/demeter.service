@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/bstaley/
-ExecStart=/home/bstaley/git/demeter/scripts/demeter-srv.py
+ExecStart=/usr/local/bin/demeter-run.sh
 Restart=on-failure
 User=bstaley
 
