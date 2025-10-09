@@ -25,4 +25,11 @@ public class ImageSliderAdapter extends FragmentStateAdapter {
     public int getItemCount() {
         return images.size();
     }
+
+    public byte[] getImageData(int position) {
+        if (images != null && position >= 0 && position < images.size()) {
+            return images.get(position);
+        }
+        return null;
+    }
 }

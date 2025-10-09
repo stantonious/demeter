@@ -23,7 +23,6 @@ public class SettingsFragment extends Fragment {
     private EditText numSuggestionsEditText;
     private EditText augmentSizeEditText;
     private Spinner plantTypeSpinner;
-    private TextView statusTextView;
     private MainActivity mainActivity;
 
     @Nullable
@@ -40,7 +39,6 @@ public class SettingsFragment extends Fragment {
         numSuggestionsEditText = view.findViewById(R.id.num_suggestions_edit_text);
         augmentSizeEditText = view.findViewById(R.id.augment_size_edit_text);
         plantTypeSpinner = view.findViewById(R.id.plant_type_spinner);
-        statusTextView = view.findViewById(R.id.status_text_view);
 
         ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(requireActivity(),
                 R.array.plant_types, android.R.layout.simple_spinner_item);
@@ -118,11 +116,6 @@ public class SettingsFragment extends Fragment {
         return plantTypeSpinner.getSelectedItemPosition();
     }
 
-    public void setStatusText(String text) {
-        if (statusTextView != null) {
-            statusTextView.setText(text);
-        }
-    }
 
     @Override
     public void onResume() {
@@ -136,34 +129,26 @@ public class SettingsFragment extends Fragment {
         if (ledIndicator == null) return; // Exit if the view is not found
 
         int drawableId;
-        String statusText;
         switch (status) {
             case SCANNING:
                 drawableId = R.drawable.led_yellow;
-                statusText = "Scanning...";
                 break;
             case CONNECTING:
                 drawableId = R.drawable.led_yellow;
-                statusText = "Connecting...";
                 break;
             case CONNECTED:
                 drawableId = R.drawable.led_green;
-                statusText = "Connected";
                 break;
             case ERROR:
                 drawableId = R.drawable.led_red;
-                statusText = "Error";
                 break;
             case DISCONNECTED:
             default:
                 drawableId = R.drawable.led_grey;
-                statusText = "Disconnected";
                 break;
         }
 
         // FIX: Set the drawable on the ImageView directly
         ledIndicator.setImageDrawable(ContextCompat.getDrawable(requireContext(), drawableId));
-
-        setStatusText(statusText);
     }
 }

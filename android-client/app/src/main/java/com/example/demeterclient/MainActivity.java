@@ -133,9 +133,9 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
     private Queue<Runnable> writeQueue = new LinkedList<>();
     private boolean isWriting = false;
 
-    private int numSuggestions = 1;
+    private int numSuggestions = 3;
     private int plantType = 0;
-    private int augmentSize = 20;
+    private int augmentSize = 65;
     private OkHttpClient httpClient;
     private ArrayList<Integer> aoiList;
 
