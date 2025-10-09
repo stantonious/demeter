@@ -52,6 +52,7 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -940,6 +941,22 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             runOnUiThread(() -> Toast.makeText(MainActivity.this, "Received empty image.", Toast.LENGTH_SHORT).show());
             return;
         }
+
+        // Save the augmented image to a file for the gallery
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        if (storageDir != null) {
+            try {
+                String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                File imageFile = new File(storageDir, "AUG_" + timeStamp + ".jpg");
+                try (FileOutputStream fos = new FileOutputStream(imageFile)) {
+                    fos.write(augmentedImage);
+                    Log.d(TAG, "Augmented image saved to " + imageFile.getAbsolutePath());
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to save augmented image", e);
+            }
+        }
+
         runOnUiThread(() -> {
             imageList.clear();
             if (originalImage != null) {
