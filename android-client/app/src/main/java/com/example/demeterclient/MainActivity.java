@@ -124,7 +124,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
     private BleConnectionStatus currentStatus = BleConnectionStatus.DISCONNECTED;
     private ImageView ledIndicator;
     private ImageView feasibilityIcon;
-    private ImageView imageResultsIcon;
     private String feasibilityResult;
 
     private StringBuilder suggestionBuilder = new StringBuilder();
@@ -169,14 +168,6 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
             }
         });
 
-        imageResultsIcon = findViewById(R.id.image_results_icon);
-        imageResultsIcon.setOnClickListener(v -> {
-            if (imageList != null && !imageList.isEmpty()) {
-                ImageDataHolder.getInstance().setImageList(new ArrayList<>(imageList));
-                Intent intent = new Intent(MainActivity.this, ImageResultsActivity.class);
-                startActivity(intent);
-            }
-        });
 
         BottomNavigationView navView = findViewById(R.id.bottom_nav_view);
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment);
@@ -963,8 +954,10 @@ public class MainActivity extends AppCompatActivity implements SuggestFragment.O
                 imageList.add(originalImage);
             }
             imageList.add(augmentedImage);
-            imageResultsIcon.setVisibility(View.VISIBLE);
-            Toast.makeText(MainActivity.this, "Augmented image received. Tap the image icon to view.", Toast.LENGTH_LONG).show();
+            ImageDataHolder.getInstance().setImageList(new ArrayList<>(imageList));
+            Intent intent = new Intent(MainActivity.this, ImageResultsActivity.class);
+            startActivity(intent);
+            Toast.makeText(MainActivity.this, "Augmented image received.", Toast.LENGTH_SHORT).show();
         });
     }
 
