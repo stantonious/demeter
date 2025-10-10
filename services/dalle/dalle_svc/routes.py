@@ -12,7 +12,7 @@ from flask_cors import cross_origin  # Removed CORS as it's handled in __init__
 import logging
 import time
 from PIL import Image, ImageDraw, ImageFilter
-from . import app, utils
+from . import app, utils, database
 
 from google.cloud import storage, secretmanager
 import google_crc32c
@@ -139,6 +139,16 @@ def suggest_plant():
 
 
 
+
+@app.route("/demeter/data/types", methods=["GET"])
+@cross_origin()
+def plant_types():
+        return json.dumps({"success": True, "types": database.PLANT_TYPES}), 200
+
+@app.route("/demeter/data/characteristics", methods=["GET"])
+@cross_origin()
+def plant_characteristics():
+        return json.dumps({"success": True, "types": database.PLANT_CHARACTERISTICS}), 200
 
 @app.route("/demeter/plant/feasibility", methods=["GET"])
 @cross_origin()
