@@ -119,9 +119,6 @@ public class MainActivity extends AppCompatActivity {
                 .readTimeout(60, TimeUnit.SECONDS)
                 .build();
 
-        fetchPlantTypes();
-        fetchPlantCharacteristics();
-
         Toolbar toolbar = findViewById(R.id.toolbar_custom);
         setSupportActionBar(toolbar);
 
@@ -682,6 +679,11 @@ public class MainActivity extends AppCompatActivity {
                 sharedViewModel.setAugmentedResult(images);
             }
         });
+    }
+
+    public void fetchDataAfterLogin() {
+        fetchPlantTypes();
+        fetchPlantCharacteristics();
     }
 
     public void fetchPlantTypes() {

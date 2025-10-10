@@ -11,6 +11,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 
+import com.example.demeterclient.MainActivity;
 import com.example.demeterclient.R;
 
 public class LoginFragment extends Fragment {
@@ -25,6 +26,7 @@ public class LoginFragment extends Fragment {
 
         loginButton.setOnClickListener(v -> {
             // For now, any login attempt is successful
+            ((MainActivity) requireActivity()).fetchDataAfterLogin();
             NavHostFragment.findNavController(LoginFragment.this)
                     .navigate(R.id.action_loginFragment_to_homeFragment);
         });
