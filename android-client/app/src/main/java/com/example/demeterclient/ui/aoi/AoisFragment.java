@@ -23,6 +23,7 @@ import androidx.annotation.Nullable;
 import androidx.exifinterface.media.ExifInterface;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.navigation.fragment.NavHostFragment;
 
 import com.example.demeterclient.MainActivity;
 import com.example.demeterclient.R;
@@ -76,6 +77,11 @@ public class AoisFragment extends Fragment {
 
         augmentButton.setOnClickListener(v -> {
             if (mainActivity != null) {
+                // Set loading state and navigate immediately
+                sharedViewModel.setIsAugmenting(true);
+                NavHostFragment.findNavController(AoisFragment.this).navigate(R.id.action_aoisFragment_to_resultsFragment);
+
+                // Start the background task
                 String plantType = sharedViewModel.getPlantType();
                 String subType = sharedViewModel.getSubType();
                 String age = sharedViewModel.getAge();

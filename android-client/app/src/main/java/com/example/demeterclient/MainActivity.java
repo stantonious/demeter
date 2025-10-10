@@ -18,6 +18,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -324,21 +325,20 @@ public class MainActivity extends AppCompatActivity {
         byte[] data = characteristic.getValue();
         if (data == null || data.length < 4) return;
         final float value = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).getFloat();
-        runOnUiThread(() -> {
-            HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
-            if (history == null) {
-                history = new HashMap<>();
-            }
-            if (uuid.equals(GattAttributes.UUID_N)) addHistory(history, "N", value);
-            else if (uuid.equals(GattAttributes.UUID_P)) addHistory(history, "P", value);
-            else if (uuid.equals(GattAttributes.UUID_K)) addHistory(history, "K", value);
-            else if (uuid.equals(GattAttributes.UUID_PH)) addHistory(history, "pH", value);
-            else if (uuid.equals(GattAttributes.UUID_HUMID)) addHistory(history, "Humidity", value);
-            else if (uuid.equals(GattAttributes.UUID_SUN)) addHistory(history, "Sun", value);
-            else if (uuid.equals(GattAttributes.UUID_MOISTURE)) addHistory(history, "Moisture", value);
-            else if (uuid.equals(GattAttributes.UUID_LIGHT)) addHistory(history, "Light", value);
-            sharedViewModel.updateSensorDataHistory(history);
-        });
+
+        HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
+        if (history == null) {
+            history = new HashMap<>();
+        }
+        if (uuid.equals(GattAttributes.UUID_N)) addHistory(history, "N", value);
+        else if (uuid.equals(GattAttributes.UUID_P)) addHistory(history, "P", value);
+        else if (uuid.equals(GattAttributes.UUID_K)) addHistory(history, "K", value);
+        else if (uuid.equals(GattAttributes.UUID_PH)) addHistory(history, "pH", value);
+        else if (uuid.equals(GattAttributes.UUID_HUMID)) addHistory(history, "Humidity", value);
+        else if (uuid.equals(GattAttributes.UUID_SUN)) addHistory(history, "Sun", value);
+        else if (uuid.equals(GattAttributes.UUID_MOISTURE)) addHistory(history, "Moisture", value);
+        else if (uuid.equals(GattAttributes.UUID_LIGHT)) addHistory(history, "Light", value);
+        sharedViewModel.updateSensorDataHistory(history);
     }
 
     private void addHistory(HashMap<String, ArrayList<Float>> history, String key, float value) {
@@ -452,10 +452,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestPlantSuggestion(String plantType, String subType, String age, int numSuggestions) {
-        runOnUiThread(() -> {
-            Toast.makeText(MainActivity.this, "Requesting suggestions...", Toast.LENGTH_SHORT).show();
-        });
-
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
         float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
@@ -532,8 +528,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestFeasibilityAnalysis(String plantName) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Requesting feasibility analysis...", Toast.LENGTH_SHORT).show());
-
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
         float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
@@ -600,18 +594,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestAugmentedImage(String imageUriString, ArrayList<String> selectedPlants, ArrayList<Integer> aoiList, String plantType, String subType, String age) {
-        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Generating augmented image...", Toast.LENGTH_LONG).show());
-
-        byte[] imageData;
+        byte[] originalImageData;
         try {
             Uri imageUri = Uri.parse(imageUriString);
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteStream);
-            imageData = byteStream.toByteArray();
+            originalImageData = byteStream.toByteArray();
         } catch (IOException e) {
             Log.e(TAG, "Failed to process image for upload", e);
-            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to read image file.", Toast.LENGTH_SHORT).show());
+            sharedViewModel.setIsAugmenting(false);
             return;
         }
 
@@ -634,7 +626,7 @@ public class MainActivity extends AppCompatActivity {
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("scene_img", "scene.jpg",
-                        RequestBody.create(imageData, MediaType.parse("image/jpeg")))
+                        RequestBody.create(originalImageData, MediaType.parse("image/jpeg")))
                 .build();
 
         Request request = new Request.Builder()
@@ -646,15 +638,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "DALL-E service call failed", e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to generate image: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                sharedViewModel.setIsAugmenting(false);
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    String errorBody = response.body().string();
-                    Log.e(TAG, "DALL-E service error: " + errorBody);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to generate image: " + response.message(), Toast.LENGTH_LONG).show());
+                    Log.e(TAG, "DALL-E service error: " + response.body().string());
+                    sharedViewModel.setIsAugmenting(false);
                     return;
                 }
 
@@ -663,20 +654,40 @@ public class MainActivity extends AppCompatActivity {
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
                         String assetURI = json.getString("assetURI");
-                        runOnUiThread(() -> {
-                            Bundle bundle = new Bundle();
-                            bundle.putString("asset_uri", assetURI);
-                            navController.navigate(R.id.action_aoisFragment_to_resultsFragment, bundle);
-                        });
+                        downloadAugmentedImage(assetURI, originalImageData);
                     } else {
-                        String reason = json.getString("reason");
-                        Log.e(TAG, "DALL-E service returned error: " + reason);
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Image generation failed: " + reason, Toast.LENGTH_LONG).show());
+                        Log.e(TAG, "DALL-E service returned error: " + json.getString("reason"));
+                        sharedViewModel.setIsAugmenting(false);
                     }
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse DALL-E response", e);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
+                    sharedViewModel.setIsAugmenting(false);
                 }
+            }
+        });
+    }
+
+    private void downloadAugmentedImage(String url, byte[] originalImage) {
+        Request request = new Request.Builder().url(url).build();
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to download augmented image", e);
+                sharedViewModel.setIsAugmenting(false);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    Log.e(TAG, "Failed to download augmented image: " + response.body().string());
+                    sharedViewModel.setIsAugmenting(false);
+                    return;
+                }
+                byte[] augmentedImage = response.body().bytes();
+                List<byte[]> images = new ArrayList<>();
+                images.add(originalImage);
+                images.add(augmentedImage);
+                sharedViewModel.setAugmentedResult(images);
             }
         });
     }
