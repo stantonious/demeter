@@ -91,4 +91,16 @@ public class SharedViewModel extends ViewModel {
     public void setAge(String age) {
         this.age = age;
     }
+
+    public void clear() {
+        sensorDataHistory.postValue(new HashMap<>());
+        bleConnectionStatus.postValue(MainActivity.BleConnectionStatus.DISCONNECTED);
+        isAugmenting.postValue(false);
+        augmentedResult.postValue(null);
+        augmentSize.setValue(65);
+        isSuggesting.postValue(false);
+        plantType = null;
+        subType = null;
+        age = null;
+    }
 }
