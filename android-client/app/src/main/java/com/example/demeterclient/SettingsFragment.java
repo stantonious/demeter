@@ -41,9 +41,10 @@ public class SettingsFragment extends Fragment {
         augmentSizeEditText = view.findViewById(R.id.augment_size_edit_text);
         swipeRefreshLayout = view.findViewById(R.id.settings_swipe_refresh);
 
-        // Set the initial text from the ViewModel
         sharedViewModel.getAugmentSize().observe(getViewLifecycleOwner(), size -> {
-            augmentSizeEditText.setText(String.valueOf(size));
+            if (!augmentSizeEditText.getText().toString().equals(String.valueOf(size))) {
+                augmentSizeEditText.setText(String.valueOf(size));
+            }
         });
 
         augmentSizeEditText.addTextChangedListener(new TextWatcher() {
@@ -52,11 +53,15 @@ public class SettingsFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s == null || s.toString().isEmpty()) return;
                 try {
-                    int size = Integer.parseInt(s.toString());
-                    sharedViewModel.setAugmentSize(Math.max(5, Math.min(200, size)));
+                    int newSize = Integer.parseInt(s.toString());
+                    Integer currentSize = sharedViewModel.getAugmentSize().getValue();
+                    if (currentSize == null || currentSize != newSize) {
+                        sharedViewModel.setAugmentSize(Math.max(5, Math.min(200, newSize)));
+                    }
                 } catch (NumberFormatException e) {
-                    // Ignore, or set to default
+                    // Ignore invalid input
                 }
             }
 
