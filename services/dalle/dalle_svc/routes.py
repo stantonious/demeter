@@ -208,6 +208,8 @@ def create_dalle():
     print("aois", aois)
     plant_names = request.args.getlist("plant_name")
     plant_type = request.args.get("plant_type")
+    sub_type = request.args.get("sub_type")
+    age = request.args.get("age")
     mask_size = int(request.args.get("mask_size"))
     productID_base = str(int(time.time()))
 
@@ -253,12 +255,14 @@ def create_dalle():
                 if plant_names[idx] in plant_names[:idx]:
                     prompt = (
                         f"Inpaint another {plant_names[idx]} {plant_type} plant of the same type as already in the image, "
+                        f"This plant is a {sub_type} and is {age}. "
                         "maintaining a consistent style, lighting, and appearance. "
                         "The new plant should look like it belongs with the others in the scene."
                     )
                 else:
                     prompt = (
-                        f"A mature, vibrant {plant_names[idx]} {plant_type} plant in a natural scene with shadows cast onto the surrounding terrain. "
+                        f"A {age}, vibrant {plant_names[idx]} {plant_type} plant. This plant is a {sub_type}. "
+                        "The plant is in a natural scene with shadows cast onto the surrounding terrain. "
                         "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
                         "The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
                         "Appears as a native resident of this landscape."
