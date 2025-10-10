@@ -6,6 +6,13 @@
     android:padding="16dp"
     android:gravity="center_vertical">
 
+    <View
+        android:id="@+id/feasibility_indicator"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/led_grey" />
+
     <TextView
         android:id="@+id/plant_name_text_view"
         android:layout_width="0dp"
@@ -19,12 +26,5 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"/>
-
-    <ImageView
-        android:id="@+id/feasibility_icon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_marginStart="16dp"
-        android:src="@android:drawable/ic_menu_info_details" />
 
 </LinearLayout>

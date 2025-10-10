@@ -153,6 +153,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_logout) {
+            sharedViewModel.clear();
             navController.navigate(R.id.loginFragment);
             return true;
         }
@@ -427,6 +428,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestPlantSuggestion(String plantType, String subType, String age, int numSuggestions) {
+        sharedViewModel.setIsSuggesting(true);
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
         float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
@@ -463,12 +465,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Plant suggestion API call failed", e);
+                sharedViewModel.setIsSuggesting(false);
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     Log.e(TAG, "Plant suggestion API error: " + response.body().string());
+                    sharedViewModel.setIsSuggesting(false);
                     return;
                 }
 
@@ -477,26 +481,30 @@ public class MainActivity extends AppCompatActivity {
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
                         org.json.JSONArray suggestionsArray = json.getJSONArray("suggestions");
-                        ArrayList<String> suggestionsList = new ArrayList<>();
+                        ArrayList<PlantSuggestion> suggestionsList = new ArrayList<>();
                         for (int i = 0; i < suggestionsArray.length(); i++) {
-                            suggestionsList.add(suggestionsArray.getString(i));
+                            suggestionsList.add(new PlantSuggestion(suggestionsArray.getString(i)));
                         }
+                        sharedViewModel.setPlantSuggestions(suggestionsList);
                         runOnUiThread(() -> {
-                            Bundle bundle = new Bundle();
-                            bundle.putStringArrayList("suggestions", suggestionsList);
-                            navController.navigate(R.id.action_suggestFragment_to_aoiSelectFragment, bundle);
+                            navController.navigate(R.id.action_suggestFragment_to_aoiSelectFragment);
                         });
+                        for (PlantSuggestion suggestion : suggestionsList) {
+                            fetchFeasibilityScore(suggestion.getName());
+                        }
                     } else {
                         Log.e(TAG, "Plant suggestion API returned error: " + json.getString("reason"));
                     }
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse suggestion response", e);
+                } finally {
+                    sharedViewModel.setIsSuggesting(false);
                 }
             }
         });
     }
 
-    public void requestFeasibilityAnalysis(String plantName) {
+    public void fetchFeasibilityScore(String plantName) {
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
         float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
@@ -540,12 +548,12 @@ public class MainActivity extends AppCompatActivity {
                     String responseBody = response.body().string();
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
-                        String feasibilityText = json.getJSONObject("feasibility").toString(2);
-                        runOnUiThread(() -> {
-                            Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
-                            intent.putExtra("feasibility_text", feasibilityText);
-                            startActivity(intent);
-                        });
+                        double feasibilityScore = json.getJSONObject("feasibility").optDouble("feasibility_score", 0.0);
+                        String feasibilityJson = json.getJSONObject("feasibility").toString();
+                        PlantSuggestion suggestion = new PlantSuggestion(plantName);
+                        suggestion.setFeasibilityScore(feasibilityScore);
+                        suggestion.setFeasibilityJson(feasibilityJson);
+                        sharedViewModel.updatePlantSuggestion(suggestion);
                     } else {
                         Log.e(TAG, "Feasibility check failed: " + json.getString("reason"));
                     }
@@ -591,11 +599,14 @@ public class MainActivity extends AppCompatActivity {
                 .addPathSegment("demeter")
                 .addPathSegment("product")
                 .addPathSegment("create")
-                .addQueryParameter("plant_name", String.join(",", selectedPlants))
                 .addQueryParameter("plant_type", plantType)
                 .addQueryParameter("sub_type", subType)
                 .addQueryParameter("age", age)
                 .addQueryParameter("mask_size", String.valueOf(sharedViewModel.getAugmentSize().getValue()));
+
+        for (String plantName : selectedPlants) {
+            urlBuilder.addQueryParameter("plant_name", plantName);
+        }
 
         for (int i = 0; i < aoiList.size(); i += 2) {
             urlBuilder.addQueryParameter("aois", aoiList.get(i) + "," + aoiList.get(i + 1));

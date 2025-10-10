@@ -14,6 +14,8 @@ public class SharedViewModel extends ViewModel {
     private final MutableLiveData<Boolean> isAugmenting = new MutableLiveData<>(false);
     private final MutableLiveData<List<byte[]>> augmentedResult = new MutableLiveData<>();
     private final MutableLiveData<Integer> augmentSize = new MutableLiveData<>(65); // Default size
+    private final MutableLiveData<Boolean> isSuggesting = new MutableLiveData<>(false);
+    private final MutableLiveData<List<PlantSuggestion>> plantSuggestions = new MutableLiveData<>();
 
     private String plantType;
     private String subType;
@@ -59,6 +61,14 @@ public class SharedViewModel extends ViewModel {
         augmentSize.setValue(size);
     }
 
+    public LiveData<Boolean> getIsSuggesting() {
+        return isSuggesting;
+    }
+
+    public void setIsSuggesting(boolean suggesting) {
+        isSuggesting.postValue(suggesting);
+    }
+
     public String getPlantType() {
         return plantType;
     }
@@ -81,5 +91,40 @@ public class SharedViewModel extends ViewModel {
 
     public void setAge(String age) {
         this.age = age;
+    }
+
+    public LiveData<List<PlantSuggestion>> getPlantSuggestions() {
+        return plantSuggestions;
+    }
+
+    public void setPlantSuggestions(List<PlantSuggestion> suggestions) {
+        plantSuggestions.postValue(suggestions);
+    }
+
+    public void updatePlantSuggestion(PlantSuggestion suggestion) {
+        List<PlantSuggestion> currentSuggestions = plantSuggestions.getValue();
+        if (currentSuggestions != null) {
+            List<PlantSuggestion> newSuggestions = new ArrayList<>(currentSuggestions);
+            for (int i = 0; i < newSuggestions.size(); i++) {
+                if (newSuggestions.get(i).getName().equals(suggestion.getName())) {
+                    newSuggestions.set(i, suggestion);
+                    plantSuggestions.postValue(newSuggestions);
+                    return;
+                }
+            }
+        }
+    }
+
+    public void clear() {
+        sensorDataHistory.postValue(new HashMap<>());
+        bleConnectionStatus.postValue(MainActivity.BleConnectionStatus.DISCONNECTED);
+        isAugmenting.postValue(false);
+        augmentedResult.postValue(null);
+        augmentSize.setValue(65);
+        isSuggesting.postValue(false);
+        plantSuggestions.postValue(new ArrayList<>());
+        plantType = null;
+        subType = null;
+        age = null;
     }
 }
