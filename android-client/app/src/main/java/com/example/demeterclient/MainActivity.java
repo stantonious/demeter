@@ -591,11 +591,14 @@ public class MainActivity extends AppCompatActivity {
                 .addPathSegment("demeter")
                 .addPathSegment("product")
                 .addPathSegment("create")
-                .addQueryParameter("plant_name", String.join(",", selectedPlants))
                 .addQueryParameter("plant_type", plantType)
                 .addQueryParameter("sub_type", subType)
                 .addQueryParameter("age", age)
                 .addQueryParameter("mask_size", String.valueOf(sharedViewModel.getAugmentSize().getValue()));
+
+        for (String plantName : selectedPlants) {
+            urlBuilder.addQueryParameter("plant_name", plantName);
+        }
 
         for (int i = 0; i < aoiList.size(); i += 2) {
             urlBuilder.addQueryParameter("aois", aoiList.get(i) + "," + aoiList.get(i + 1));
