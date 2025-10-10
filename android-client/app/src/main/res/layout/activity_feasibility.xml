@@ -5,11 +5,71 @@
     android:layout_height="match_parent"
     tools:context=".FeasibilityActivity">
 
-    <TextView
-        android:id="@+id/feasibility_text_view"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
-        android:textSize="16sp" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
+        <TextView
+            android:id="@+id/overall_feasibility_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Overall Feasibility"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/overall_feasibility_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/soil_analysis_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Soil Analysis"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/soil_analysis_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/climate_analysis_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Climate Analysis"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/climate_analysis_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/water_analysis_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Water Analysis"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/water_analysis_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android.textSize="16sp" />
+
+    </LinearLayout>
 </ScrollView>
