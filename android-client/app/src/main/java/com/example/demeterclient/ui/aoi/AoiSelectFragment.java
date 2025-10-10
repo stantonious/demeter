@@ -1,7 +1,9 @@
 package com.example.demeterclient.ui.aoi;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,13 +11,18 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.demeterclient.MainActivity;
 import com.example.demeterclient.R;
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 
 public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFeasibilityClickListener {
 
@@ -25,6 +32,7 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFe
     private Button takePictureButton;
     private MainActivity mainActivity;
     private ArrayList<String> suggestions;
+    private Uri photoURI;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -47,14 +55,40 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFe
         adapter = new AoiSelectAdapter(suggestions, this);
         suggestionsRecyclerView.setAdapter(adapter);
 
-        takePictureButton.setOnClickListener(v -> {
-            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            if (takePictureIntent.resolveActivity(requireActivity().getPackageManager()) != null) {
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            }
-        });
+        takePictureButton.setOnClickListener(v -> dispatchTakePictureIntent());
 
         return view;
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(requireActivity().getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                // Handle the error
+            }
+            if (photoFile != null) {
+                photoURI = FileProvider.getUriForFile(requireContext(),
+                        "com.example.demeterclient.fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = requireActivity().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
+        return image;
     }
 
     @Override
@@ -63,8 +97,8 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFe
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == getActivity().RESULT_OK) {
             Bundle bundle = new Bundle();
             bundle.putStringArrayList("selected_plants", new ArrayList<>(adapter.getSelectedPlants()));
-            if (data != null && data.getData() != null) {
-                bundle.putString("image_uri", data.getData().toString());
+            if (photoURI != null) {
+                bundle.putString("image_uri", photoURI.toString());
             }
             NavHostFragment.findNavController(this).navigate(R.id.action_aoiSelectFragment_to_aoisFragment, bundle);
         }
