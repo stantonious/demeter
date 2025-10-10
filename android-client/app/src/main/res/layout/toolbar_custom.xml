@@ -16,24 +16,37 @@
         android:src="@drawable/ic_launcher_demeter_foreground"
         android:contentDescription="@string/app_name" />
 
-    <ImageView
-        android:id="@+id/feasibility_icon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="end"
-        android:layout_marginEnd="16dp"
-        android:src="@drawable/ic_feasibility"
-        android:visibility="gone"
-        android:contentDescription="View Feasibility" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
+        <ImageView
+            android:id="@+id/feasibility_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="16dp"
+            android:src="@drawable/ic_feasibility"
+            android:visibility="gone"
+            android:contentDescription="View Feasibility" />
 
-    <ImageView
-        android:id="@+id/led_indicator"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:layout_gravity="end"
-        android:layout_marginEnd="16dp"
-        android:src="@drawable/led_grey"
-        android:visibility="visible" />
+        <ImageView
+            android:id="@+id/demeter_led_indicator"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/led_green"
+            android:visibility="visible" />
+
+        <ImageView
+            android:id="@+id/led_indicator"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="16dp"
+            android:src="@drawable/led_grey"
+            android:visibility="visible" />
+    </LinearLayout>
 
 </androidx.appcompat.widget.Toolbar>
