@@ -6,24 +6,18 @@ import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.Spinner;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class SettingsFragment extends Fragment {
 
-    private EditText numSuggestionsEditText;
     private EditText augmentSizeEditText;
-    private Spinner plantTypeSpinner;
     private MainActivity mainActivity;
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     @Nullable
     @Override
@@ -36,42 +30,8 @@ public class SettingsFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        numSuggestionsEditText = view.findViewById(R.id.num_suggestions_edit_text);
         augmentSizeEditText = view.findViewById(R.id.augment_size_edit_text);
-        plantTypeSpinner = view.findViewById(R.id.plant_type_spinner);
-
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(requireActivity(),
-                R.array.plant_types, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        plantTypeSpinner.setAdapter(adapter);
-
-        numSuggestionsEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                mainActivity.setNumSuggestions(getNumSuggestions());
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {}
-        });
-
-        plantTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                mainActivity.setPlantType(position);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        // Set initial values
-        mainActivity.setNumSuggestions(getNumSuggestions());
-        mainActivity.setPlantType(getPlantType());
-        mainActivity.setAugmentSize(getAugmentSize());
+        swipeRefreshLayout = view.findViewById(R.id.settings_swipe_refresh);
 
         augmentSizeEditText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -79,11 +39,21 @@ public class SettingsFragment extends Fragment {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                mainActivity.setAugmentSize(getAugmentSize());
+                if (mainActivity != null) {
+                    mainActivity.setAugmentSize(getAugmentSize());
+                }
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
+        });
+
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            if (mainActivity != null) {
+                mainActivity.reconnectBle();
+                // Hide the refresh indicator after a short delay
+                swipeRefreshLayout.postDelayed(() -> swipeRefreshLayout.setRefreshing(false), 1000);
+            }
         });
     }
 
@@ -94,61 +64,9 @@ public class SettingsFragment extends Fragment {
                 int size = Integer.parseInt(augmentSizeStr);
                 return Math.max(5, Math.min(200, size));
             } catch (NumberFormatException e) {
-                return 100;
+                return 65; // Default value
             }
         }
-        return 100;
-    }
-
-    public int getNumSuggestions() {
-        String numSuggestionsStr = numSuggestionsEditText.getText().toString();
-        if (!numSuggestionsStr.isEmpty()) {
-            try {
-                return Integer.parseInt(numSuggestionsStr);
-            } catch (NumberFormatException e) {
-                return 1;
-            }
-        }
-        return 1;
-    }
-
-    public int getPlantType() {
-        return plantTypeSpinner.getSelectedItemPosition();
-    }
-
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        updateConnectionStatus(mainActivity.getCurrentConnectionStatus());
-    }
-
-    public void updateConnectionStatus(MainActivity.BleConnectionStatus status) {
-        if (!isAdded()) return;
-        ImageView ledIndicator = getView().findViewById(R.id.led_indicator);
-        if (ledIndicator == null) return; // Exit if the view is not found
-
-        int drawableId;
-        switch (status) {
-            case SCANNING:
-                drawableId = R.drawable.led_yellow;
-                break;
-            case CONNECTING:
-                drawableId = R.drawable.led_yellow;
-                break;
-            case CONNECTED:
-                drawableId = R.drawable.led_green;
-                break;
-            case ERROR:
-                drawableId = R.drawable.led_red;
-                break;
-            case DISCONNECTED:
-            default:
-                drawableId = R.drawable.led_grey;
-                break;
-        }
-
-        // FIX: Set the drawable on the ImageView directly
-        ledIndicator.setImageDrawable(ContextCompat.getDrawable(requireContext(), drawableId));
+        return 65; // Default value
     }
 }

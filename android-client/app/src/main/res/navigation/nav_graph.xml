@@ -3,26 +3,68 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/navigation_home">
+    app:startDestination="@id/loginFragment">
 
     <fragment
-        android:id="@+id/navigation_home"
-        android:name="com.example.demeterclient.HomeFragment"
+        android:id="@+id/loginFragment"
+        android:name="com.example.demeterclient.ui.login.LoginFragment"
+        android:label="fragment_login"
+        tools:layout="@layout/fragment_login" >
+        <action
+            android:id="@+id/action_loginFragment_to_homeFragment"
+            app:destination="@id/homeFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.demeterclient.ui.home.HomeFragment"
         android:label="fragment_home"
-        tools:layout="@layout/fragment_home" />
+        tools:layout="@layout/fragment_home" >
+        <action
+            android:id="@+id/action_homeFragment_to_settingsFragment"
+            app:destination="@id/settingsFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_suggestFragment"
+            app:destination="@id/suggestFragment" />
+        <action
+            android:id="@+id/action_homeFragment_to_dataFragment"
+            app:destination="@id/dataFragment" />
+    </fragment>
     <fragment
-        android:id="@+id/navigation_suggest"
-        android:name="com.example.demeterclient.SuggestFragment"
-        android:label="fragment_suggest"
-        tools:layout="@layout/fragment_suggest" />
-    <fragment
-        android:id="@+id/navigation_settings"
+        android:id="@+id/settingsFragment"
         android:name="com.example.demeterclient.SettingsFragment"
         android:label="fragment_settings"
         tools:layout="@layout/fragment_settings" />
     <fragment
-        android:id="@+id/navigation_stats"
-        android:name="com.example.demeterclient.StatsFragment"
-        android:label="fragment_stats"
-        tools:layout="@layout/fragment_stats" />
+        android:id="@+id/suggestFragment"
+        android:name="com.example.demeterclient.SuggestFragment"
+        android:label="fragment_suggest"
+        tools:layout="@layout/fragment_suggest" >
+        <action
+            android:id="@+id/action_suggestFragment_to_aoiSelectFragment"
+            app:destination="@id/aoiSelectFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/dataFragment"
+        android:name="com.example.demeterclient.ui.data.DataFragment"
+        android:label="DataFragment" />
+    <fragment
+        android:id="@+id/aoiSelectFragment"
+        android:name="com.example.demeterclient.ui.aoi.AoiSelectFragment"
+        android:label="AoiSelectFragment" >
+        <action
+            android:id="@+id/action_aoiSelectFragment_to_aoisFragment"
+            app:destination="@id/aoisFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/aoisFragment"
+        android:name="com.example.demeterclient.ui.aoi.AoisFragment"
+        android:label="AoisFragment" >
+        <action
+            android:id="@+id/action_aoisFragment_to_resultsFragment"
+            app:destination="@id/resultsFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/resultsFragment"
+        android:name="com.example.demeterclient.ui.results.ResultsFragment"
+        android:label="ResultsFragment" />
 </navigation>

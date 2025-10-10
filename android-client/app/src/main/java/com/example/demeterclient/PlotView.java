@@ -70,7 +70,7 @@ public class PlotView extends View {
         seriesLabels.put("Light", "Light");
     }
 
-    public void setData(Map<String, ArrayList<Float>> data) {
+    public void updateData(Map<String, ArrayList<Float>> data) {
         this.dataSeries = data;
         invalidate(); // Request a redraw
     }
