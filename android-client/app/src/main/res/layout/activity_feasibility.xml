@@ -12,64 +12,59 @@
         android:padding="16dp">
 
         <TextView
-            android:id="@+id/overall_feasibility_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Overall Feasibility"
+            android:text="Feasibility Score"
             android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/overall_feasibility_text_view"
+            android:id="@+id/feasibility_score_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:textSize="16sp" />
 
         <TextView
-            android:id="@+id/soil_analysis_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Soil Analysis"
+            android:text="Analysis Summary"
             android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/soil_analysis_text_view"
+            android:id="@+id/analysis_summary_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:textSize="16sp" />
 
         <TextView
-            android:id="@+id/climate_analysis_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Climate Analysis"
+            android:text="Detailed Analysis"
             android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/climate_analysis_text_view"
+            android:id="@+id/detailed_analysis_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             android:textSize="16sp" />
 
         <TextView
-            android:id="@+id/water_analysis_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Water Analysis"
+            android:text="Recommendations"
             android:textSize="18sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/water_analysis_text_view"
+            android:id="@+id/recommendations_text_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android.textSize="16sp" />
+            android:textSize="16sp" />
 
     </LinearLayout>
 </ScrollView>
