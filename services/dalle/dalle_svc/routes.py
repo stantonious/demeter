@@ -200,6 +200,9 @@ def create_dalle():
     def _get_bb(x, y, s):
         return int(x - s / 2), int(y - s / 2), int(x + s / 2), int(y + s / 2)
 
+    def _scale_aoi(x, y, x_scale,y_scale):
+        return int(x * x_scale), int(y * y_scale )
+
     print("args", request.args)
     aois = _decode_aois(request.args.getlist("aois"))
     print("aois", aois)
@@ -216,11 +219,15 @@ def create_dalle():
             return json.dumps({"success": False, "reason": "No file provided."}), 500, {"ContentType": "application/json"}
 
         in_image = Image.open(request.files["scene_img"]).convert("RGBA").resize((512, 512))
+        print ('image size',in_image.size)
+        x_scale = 512/in_image.size[0]
+        y_scale = 512/in_image.size[1]
 
         try:
             cur_img = in_image
             for idx, aoi in enumerate(aois):
-                bb = _get_bb(*aoi, mask_size)
+                scaled_aoi = _scale_aoi(*aoi,x_scale,y_scale)
+                bb = _get_bb(*scaled_aoi, mask_size)
                 print(f"AOI {idx}: Bounding box {bb}")
 
                 # Create binary alpha mask: transparent where we want edits, opaque elsewhere
@@ -278,6 +285,7 @@ def create_dalle():
 
                 cur_img = Image.open(io.BytesIO(response_data))
                 final_uri = asset_uri
+                print ('final uri',final_uri)
 
         except Exception as e:
             return json.dumps({"success": False, "reason": f"Dalle error. {e}"}), 500, {"ContentType": "application/json"}
