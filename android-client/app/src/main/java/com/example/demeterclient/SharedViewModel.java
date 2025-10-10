@@ -19,7 +19,7 @@ public class SharedViewModel extends ViewModel {
     }
 
     public void updateSensorDataHistory(HashMap<String, ArrayList<Float>> history) {
-        sensorDataHistory.setValue(history);
+        sensorDataHistory.postValue(history); // Use postValue for background thread safety
     }
 
     public LiveData<MainActivity.BleConnectionStatus> getBleConnectionStatus() {
@@ -27,7 +27,7 @@ public class SharedViewModel extends ViewModel {
     }
 
     public void setBleConnectionStatus(MainActivity.BleConnectionStatus status) {
-        bleConnectionStatus.setValue(status);
+        bleConnectionStatus.postValue(status); // Use postValue for background thread safety
     }
 
     public String getPlantType() {
