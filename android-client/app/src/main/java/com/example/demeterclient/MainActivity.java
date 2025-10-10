@@ -19,6 +19,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -33,6 +34,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.exifinterface.media.ExifInterface;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -400,7 +402,6 @@ public class MainActivity extends AppCompatActivity {
         if (sharedViewModel.getAugmentSize().getValue() != null) {
             setAugmentSize(sharedViewModel.getAugmentSize().getValue());
         }
-        // Set other initial characteristics if needed
     }
 
     public void reconnectBle() {
@@ -559,9 +560,24 @@ public class MainActivity extends AppCompatActivity {
         try {
             Uri imageUri = Uri.parse(imageUriString);
             Bitmap bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), imageUri);
+
+            InputStream inputStream = getContentResolver().openInputStream(imageUri);
+            ExifInterface exifInterface = new ExifInterface(inputStream);
+            int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED);
+            Matrix matrix = new Matrix();
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90: matrix.postRotate(90); break;
+                case ExifInterface.ORIENTATION_ROTATE_180: matrix.postRotate(180); break;
+                case ExifInterface.ORIENTATION_ROTATE_270: matrix.postRotate(270); break;
+                default: break;
+            }
+            Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            inputStream.close();
+
             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteStream);
+            rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteStream);
             originalImageData = byteStream.toByteArray();
+
         } catch (IOException e) {
             Log.e(TAG, "Failed to process image for upload", e);
             sharedViewModel.setIsAugmenting(false);
