@@ -504,66 +504,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void navigateToFeasibilityDetails(String plantName) {
-        HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
-        float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
-        float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
-        float k_mgkg = history != null && history.get("K") != null && !history.get("K").isEmpty() ? history.get("K").get(history.get("K").size() - 1) : 0;
-        float ph = history != null && history.get("pH") != null && !history.get("pH").isEmpty() ? history.get("pH").get(history.get("pH").size() - 1) : 7.0f;
-        float moisture = history != null && history.get("Moisture") != null && !history.get("Moisture").isEmpty() ? history.get("Moisture").get(history.get("Moisture").size() - 1) : 50;
-        float sun_intensity = history != null && history.get("Sun") != null && !history.get("Sun").isEmpty() ? history.get("Sun").get(history.get("Sun").size() - 1) : 50000;
-
-        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
-                .addPathSegment("demeter")
-                .addPathSegment("plant")
-                .addPathSegment("feasibility")
-                .addQueryParameter("plant_type", plantName)
-                .addQueryParameter("n_mgkg", String.valueOf(n_mgkg))
-                .addQueryParameter("p_mgkg", String.valueOf(p_mgkg))
-                .addQueryParameter("k_mgkg", String.valueOf(k_mgkg))
-                .addQueryParameter("ph", String.valueOf(ph))
-                .addQueryParameter("moisture", String.valueOf(moisture))
-                .addQueryParameter("sun_intensity", String.valueOf(sun_intensity))
-                .addQueryParameter("lat", "39.5186")
-                .addQueryParameter("lon", "-104.7614");
-
-        Request request = new Request.Builder().url(urlBuilder.build()).get().build();
-
-        httpClient.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Feasibility API call failed", e);
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) {
-                    Log.e(TAG, "Feasibility API error: " + response.body().string());
-                    return;
-                }
-
-                try {
-                    String responseBody = response.body().string();
-                    JSONObject json = new JSONObject(responseBody);
-                    if (json.getBoolean("success")) {
-                        String feasibilityText = json.getJSONObject("feasibility").toString(2);
-                        runOnUiThread(() -> {
-                            Intent intent = new Intent(MainActivity.this, FeasibilityActivity.class);
-                            intent.putExtra("feasibility_text", feasibilityText);
-                            startActivity(intent);
-                        });
-                    } else {
-                        Log.e(TAG, "Feasibility check failed: " + json.getString("reason"));
-                    }
-                } catch (JSONException e) {
-                    Log.e(TAG, "Failed to parse feasibility response", e);
-                }
-            }
-        });
-    }
-
     public void fetchFeasibilityScore(String plantName) {
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
@@ -609,8 +549,10 @@ public class MainActivity extends AppCompatActivity {
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
                         double feasibilityScore = json.getJSONObject("feasibility").optDouble("feasibility_score", 0.0);
+                        String feasibilityJson = json.getJSONObject("feasibility").toString();
                         PlantSuggestion suggestion = new PlantSuggestion(plantName);
                         suggestion.setFeasibilityScore(feasibilityScore);
+                        suggestion.setFeasibilityJson(feasibilityJson);
                         sharedViewModel.updatePlantSuggestion(suggestion);
                     } else {
                         Log.e(TAG, "Feasibility check failed: " + json.getString("reason"));

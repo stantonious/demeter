@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.demeterclient.FeasibilityActivity;
 import com.example.demeterclient.MainActivity;
 import com.example.demeterclient.R;
 import com.example.demeterclient.SharedViewModel;
@@ -112,6 +113,8 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnIt
 
     @Override
     public void onItemClick(com.example.demeterclient.PlantSuggestion suggestion) {
-        mainActivity.navigateToFeasibilityDetails(suggestion.getName());
+        Intent intent = new Intent(getActivity(), FeasibilityActivity.class);
+        intent.putExtra("feasibility_text", suggestion.getFeasibilityJson());
+        startActivity(intent);
     }
 }
