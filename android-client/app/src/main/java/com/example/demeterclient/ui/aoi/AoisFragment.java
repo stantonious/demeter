@@ -50,6 +50,7 @@ public class AoisFragment extends Fragment {
     private ArrayList<String> selectedPlants;
     private String imageUriString;
     private List<Integer> aoiColors = new ArrayList<>();
+    private int currentAugmentSize = 65;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -71,21 +72,24 @@ public class AoisFragment extends Fragment {
         aoiTypeSpinner = view.findViewById(R.id.aoi_type_spinner);
         augmentButton = view.findViewById(R.id.augment_button);
 
+        sharedViewModel.getAugmentSize().observe(getViewLifecycleOwner(), size -> {
+            currentAugmentSize = size;
+        });
+
         initializeAoiColors();
         setupAoiTypeSpinner();
         setupImageView();
 
         augmentButton.setOnClickListener(v -> {
             if (mainActivity != null) {
-                // Set loading state and navigate immediately
+                sharedViewModel.setAugmentedResult(null); // Clear previous results
                 sharedViewModel.setIsAugmenting(true);
                 NavHostFragment.findNavController(AoisFragment.this).navigate(R.id.action_aoisFragment_to_resultsFragment);
 
-                // Start the background task
                 String plantType = sharedViewModel.getPlantType();
                 String subType = sharedViewModel.getSubType();
                 String age = sharedViewModel.getAge();
-                mainActivity.requestAugmentedImage(imageUriString, selectedPlants, aoiPoints, plantType, subType, age);
+                mainActivity.requestAugmentedImage(imageUriString, selectedPlants, getScaledAoiPoints(), plantType, subType, age);
             }
         });
 
@@ -99,6 +103,22 @@ public class AoisFragment extends Fragment {
         aoiColors.add(Color.YELLOW);
         aoiColors.add(Color.CYAN);
         aoiColors.add(Color.MAGENTA);
+    }
+
+    private ArrayList<Integer> getScaledAoiPoints() {
+        if (originalBitmap == null || aoiPoints.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        ArrayList<Integer> scaledPoints = new ArrayList<>();
+        float scaleX = 512.0f / originalBitmap.getWidth();
+        float scaleY = 512.0f / originalBitmap.getHeight();
+
+        for (int i = 0; i < aoiPoints.size(); i += 2) {
+            scaledPoints.add((int) (aoiPoints.get(i) * scaleX));
+            scaledPoints.add((int) (aoiPoints.get(i + 1) * scaleY));
+        }
+        return scaledPoints;
     }
 
     private void setupAoiTypeSpinner() {
@@ -129,7 +149,6 @@ public class AoisFragment extends Fragment {
                 Uri imageUri = Uri.parse(imageUriString);
                 Bitmap bitmap = MediaStore.Images.Media.getBitmap(requireActivity().getContentResolver(), imageUri);
 
-                // Rotate bitmap according to EXIF data
                 InputStream inputStream = requireContext().getContentResolver().openInputStream(imageUri);
                 ExifInterface exifInterface = new ExifInterface(inputStream);
                 int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED);
@@ -150,12 +169,10 @@ public class AoisFragment extends Fragment {
                 originalBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
                 inputStream.close();
 
-
                 mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
                 canvas = new Canvas(mutableBitmap);
                 paint = new Paint();
-                paint.setAlpha(128); // Semi-transparent
-                // Set initial color
+                paint.setAlpha(128);
                 if (!aoiColors.isEmpty()) {
                     paint.setColor(aoiColors.get(aoiTypeSpinner.getSelectedItemPosition() % aoiColors.size()));
                 }
@@ -173,9 +190,12 @@ public class AoisFragment extends Fragment {
                         int x = (int) touchPoint[0];
                         int y = (int) touchPoint[1];
 
+                        float markerRadius = (currentAugmentSize / 512.0f) * (v.getWidth() / 2.0f);
+
+
                         aoiPoints.add(x);
                         aoiPoints.add(y);
-                        canvas.drawCircle(x, y, 30, paint); // Draw a circle for the AOI
+                        canvas.drawCircle(x, y, markerRadius, paint);
                         previewImageView.invalidate();
                     }
                     return true;

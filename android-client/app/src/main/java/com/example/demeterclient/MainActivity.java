@@ -95,9 +95,6 @@ public class MainActivity extends AppCompatActivity {
     private Queue<Runnable> writeQueue = new LinkedList<>();
     private boolean isWriting = false;
 
-    private int numSuggestions = 3;
-    private int plantType = 0;
-    private int augmentSize = 65;
     private OkHttpClient httpClient;
 
     private List<UUID> characteristicsToSubscribe;
@@ -400,9 +397,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setInitialCharacteristics() {
-        setAugmentSize(this.augmentSize);
-        setNumSuggestions(this.numSuggestions);
-        setPlantType(this.plantType);
+        if (sharedViewModel.getAugmentSize().getValue() != null) {
+            setAugmentSize(sharedViewModel.getAugmentSize().getValue());
+        }
+        // Set other initial characteristics if needed
     }
 
     public void reconnectBle() {
@@ -415,32 +413,7 @@ public class MainActivity extends AppCompatActivity {
         scanLeDevice(true);
     }
 
-    public void setNumSuggestions(int numSuggestions) {
-        this.numSuggestions = numSuggestions;
-        if (bluetoothGatt == null) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_NUM_SUGGESTIONS);
-        if (characteristic != null) {
-            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(numSuggestions).array();
-            writeCharacteristicToQueue(characteristic, value);
-        }
-    }
-
-    public void setPlantType(int plantType) {
-        this.plantType = plantType;
-        if (bluetoothGatt == null) return;
-        BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
-        if (service == null) return;
-        BluetoothGattCharacteristic characteristic = service.getCharacteristic(GattAttributes.UUID_PLANT_TYPE);
-        if (characteristic != null) {
-            byte[] value = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(plantType).array();
-            writeCharacteristicToQueue(characteristic, value);
-        }
-    }
-
-    public void setAugmentSize(int size) {
-        this.augmentSize = size;
+    private void setAugmentSize(int size) {
         if (bluetoothGatt == null) return;
         BluetoothGattService service = bluetoothGatt.getService(GattAttributes.DEMETER_SERVICE_UUID);
         if (service == null) return;
@@ -488,15 +461,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Plant suggestion API call failed", e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to get suggestion: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    String errorBody = response.body().string();
-                    Log.e(TAG, "Plant suggestion API error: " + errorBody);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to get suggestion: " + response.message(), Toast.LENGTH_LONG).show());
+                    Log.e(TAG, "Plant suggestion API error: " + response.body().string());
                     return;
                 }
 
@@ -515,13 +485,10 @@ public class MainActivity extends AppCompatActivity {
                             navController.navigate(R.id.action_suggestFragment_to_aoiSelectFragment, bundle);
                         });
                     } else {
-                        String reason = json.getString("reason");
-                        Log.e(TAG, "Plant suggestion API returned error: " + reason);
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Suggestion failed: " + reason, Toast.LENGTH_LONG).show());
+                        Log.e(TAG, "Plant suggestion API returned error: " + json.getString("reason"));
                     }
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse suggestion response", e);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
                 }
             }
         });
@@ -558,15 +525,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Feasibility API call failed", e);
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to get feasibility: " + e.getMessage(), Toast.LENGTH_LONG).show());
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    String errorBody = response.body().string();
-                    Log.e(TAG, "Feasibility API error: " + errorBody);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to get feasibility: " + response.message(), Toast.LENGTH_LONG).show());
+                    Log.e(TAG, "Feasibility API error: " + response.body().string());
                     return;
                 }
 
@@ -581,13 +545,10 @@ public class MainActivity extends AppCompatActivity {
                             startActivity(intent);
                         });
                     } else {
-                        String reason = json.getString("reason");
-                        Log.e(TAG, "Feasibility API returned error: " + reason);
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Feasibility check failed: " + reason, Toast.LENGTH_LONG).show());
+                        Log.e(TAG, "Feasibility check failed: " + json.getString("reason"));
                     }
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse feasibility response", e);
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Failed to parse server response.", Toast.LENGTH_LONG).show());
                 }
             }
         });
@@ -617,7 +578,7 @@ public class MainActivity extends AppCompatActivity {
                 .addQueryParameter("plant_type", plantType)
                 .addQueryParameter("sub_type", subType)
                 .addQueryParameter("age", age)
-                .addQueryParameter("mask_size", String.valueOf(augmentSize));
+                .addQueryParameter("mask_size", String.valueOf(sharedViewModel.getAugmentSize().getValue()));
 
         for (int i = 0; i < aoiList.size(); i += 2) {
             urlBuilder.addQueryParameter("aois", aoiList.get(i) + "," + aoiList.get(i + 1));

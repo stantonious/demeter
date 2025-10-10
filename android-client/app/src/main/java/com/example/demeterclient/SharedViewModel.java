@@ -13,6 +13,7 @@ public class SharedViewModel extends ViewModel {
     private final MutableLiveData<MainActivity.BleConnectionStatus> bleConnectionStatus = new MutableLiveData<>();
     private final MutableLiveData<Boolean> isAugmenting = new MutableLiveData<>(false);
     private final MutableLiveData<List<byte[]>> augmentedResult = new MutableLiveData<>();
+    private final MutableLiveData<Integer> augmentSize = new MutableLiveData<>(65); // Default size
 
     private String plantType;
     private String subType;
@@ -48,6 +49,14 @@ public class SharedViewModel extends ViewModel {
 
     public void setAugmentedResult(List<byte[]> images) {
         augmentedResult.postValue(images);
+    }
+
+    public LiveData<Integer> getAugmentSize() {
+        return augmentSize;
+    }
+
+    public void setAugmentSize(int size) {
+        augmentSize.setValue(size);
     }
 
     public String getPlantType() {

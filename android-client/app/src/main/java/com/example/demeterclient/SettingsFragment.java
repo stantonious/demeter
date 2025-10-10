@@ -11,6 +11,7 @@ import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class SettingsFragment extends Fragment {
@@ -18,11 +19,18 @@ public class SettingsFragment extends Fragment {
     private EditText augmentSizeEditText;
     private MainActivity mainActivity;
     private SwipeRefreshLayout swipeRefreshLayout;
+    private SharedViewModel sharedViewModel;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mainActivity = (MainActivity) getActivity();
+        sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
+    }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        mainActivity = (MainActivity) getActivity();
         return inflater.inflate(R.layout.fragment_settings, container, false);
     }
 
@@ -33,14 +41,22 @@ public class SettingsFragment extends Fragment {
         augmentSizeEditText = view.findViewById(R.id.augment_size_edit_text);
         swipeRefreshLayout = view.findViewById(R.id.settings_swipe_refresh);
 
+        // Set the initial text from the ViewModel
+        sharedViewModel.getAugmentSize().observe(getViewLifecycleOwner(), size -> {
+            augmentSizeEditText.setText(String.valueOf(size));
+        });
+
         augmentSizeEditText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (mainActivity != null) {
-                    mainActivity.setAugmentSize(getAugmentSize());
+                try {
+                    int size = Integer.parseInt(s.toString());
+                    sharedViewModel.setAugmentSize(Math.max(5, Math.min(200, size)));
+                } catch (NumberFormatException e) {
+                    // Ignore, or set to default
                 }
             }
 
@@ -51,22 +67,8 @@ public class SettingsFragment extends Fragment {
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (mainActivity != null) {
                 mainActivity.reconnectBle();
-                // Hide the refresh indicator after a short delay
                 swipeRefreshLayout.postDelayed(() -> swipeRefreshLayout.setRefreshing(false), 1000);
             }
         });
-    }
-
-    public int getAugmentSize() {
-        String augmentSizeStr = augmentSizeEditText.getText().toString();
-        if (!augmentSizeStr.isEmpty()) {
-            try {
-                int size = Integer.parseInt(augmentSizeStr);
-                return Math.max(5, Math.min(200, size));
-            } catch (NumberFormatException e) {
-                return 65; // Default value
-            }
-        }
-        return 65; // Default value
     }
 }

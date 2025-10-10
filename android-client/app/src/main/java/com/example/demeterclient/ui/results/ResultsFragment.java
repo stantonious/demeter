@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -53,8 +54,12 @@ public class ResultsFragment extends Fragment {
                 ImageSliderAdapter adapter = new ImageSliderAdapter(images);
                 viewPager.setAdapter(adapter);
                 viewPager.setVisibility(View.VISIBLE);
-                loadingIndicator.setVisibility(View.GONE);
-                sharedViewModel.setIsAugmenting(false); // Reset loading state
+                sharedViewModel.setIsAugmenting(false); // Ensure loading is stopped
+            } else {
+                // Handle case where augmentation might have failed or returned empty.
+                if (sharedViewModel.getIsAugmenting().getValue() == Boolean.FALSE) {
+                    Toast.makeText(getContext(), "Failed to generate image.", Toast.LENGTH_SHORT).show();
+                }
             }
         });
     }
