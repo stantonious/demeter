@@ -15,6 +15,8 @@ import com.example.demeterclient.ImageSliderAdapter;
 import com.example.demeterclient.R;
 import com.example.demeterclient.SharedViewModel;
 
+import java.util.ArrayList;
+
 public class ResultsFragment extends Fragment {
 
     private ViewPager2 viewPager;
@@ -51,15 +53,11 @@ public class ResultsFragment extends Fragment {
 
         sharedViewModel.getAugmentedResult().observe(getViewLifecycleOwner(), images -> {
             if (images != null && !images.isEmpty()) {
-                ImageSliderAdapter adapter = new ImageSliderAdapter(images);
+                ImageSliderAdapter adapter = new ImageSliderAdapter(requireActivity(),images);
                 viewPager.setAdapter(adapter);
                 viewPager.setVisibility(View.VISIBLE);
-                sharedViewModel.setIsAugmenting(false); // Ensure loading is stopped
-            } else {
-                // Handle case where augmentation might have failed or returned empty.
-                if (sharedViewModel.getIsAugmenting().getValue() == Boolean.FALSE) {
-                    Toast.makeText(getContext(), "Failed to generate image.", Toast.LENGTH_SHORT).show();
-                }
+                loadingIndicator.setVisibility(View.GONE);
+                sharedViewModel.setIsAugmenting(false); // Reset loading state
             }
         });
     }
