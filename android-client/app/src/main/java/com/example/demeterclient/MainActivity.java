@@ -112,14 +112,15 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
-        fetchPlantTypes();
-        fetchPlantCharacteristics();
 
         httpClient = new OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .build();
+
+        fetchPlantTypes();
+        fetchPlantCharacteristics();
 
         Toolbar toolbar = findViewById(R.id.toolbar_custom);
         setSupportActionBar(toolbar);
@@ -759,10 +760,10 @@ public class MainActivity extends AppCompatActivity {
                     String responseBody = response.body().string();
                     JSONObject json = new JSONObject(responseBody);
                     if (json.getBoolean("success")) {
-                        org.json.JSONArray characteristicsArray = json.getJSONArray("types");
+                        org.json.JSONArray typesArray = json.getJSONArray("types");
                         ArrayList<String> characteristicsList = new ArrayList<>();
-                        for (int i = 0; i < characteristicsArray.length(); i++) {
-                            characteristicsList.add(characteristicsArray.getString(i));
+                        for (int i = 0; i < typesArray.length(); i++) {
+                            characteristicsList.add(typesArray.getString(i));
                         }
                         sharedViewModel.setPlantCharacteristics(characteristicsList);
                     } else {
