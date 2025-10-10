@@ -14,6 +14,7 @@ public class SharedViewModel extends ViewModel {
     private final MutableLiveData<Boolean> isAugmenting = new MutableLiveData<>(false);
     private final MutableLiveData<List<byte[]>> augmentedResult = new MutableLiveData<>();
     private final MutableLiveData<Integer> augmentSize = new MutableLiveData<>(65); // Default size
+    private final MutableLiveData<Boolean> isSuggesting = new MutableLiveData<>(false);
 
     private String plantType;
     private String subType;
@@ -57,6 +58,14 @@ public class SharedViewModel extends ViewModel {
 
     public void setAugmentSize(int size) {
         augmentSize.setValue(size);
+    }
+
+    public LiveData<Boolean> getIsSuggesting() {
+        return isSuggesting;
+    }
+
+    public void setIsSuggesting(boolean suggesting) {
+        isSuggesting.postValue(suggesting);
     }
 
     public String getPlantType() {

@@ -84,5 +84,13 @@ public class SuggestFragment extends Fragment {
                 mainActivity.requestPlantSuggestion(plantType, subType, age, numSuggestions);
             }
         });
+
+        sharedViewModel.getIsSuggesting().observe(getViewLifecycleOwner(), isSuggesting -> {
+            if (isSuggesting) {
+                view.findViewById(R.id.suggest_progress_bar).setVisibility(View.VISIBLE);
+            } else {
+                view.findViewById(R.id.suggest_progress_bar).setVisibility(View.GONE);
+            }
+        });
     }
 }

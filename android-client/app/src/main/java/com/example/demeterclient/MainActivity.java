@@ -427,6 +427,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestPlantSuggestion(String plantType, String subType, String age, int numSuggestions) {
+        sharedViewModel.setIsSuggesting(true);
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
         float p_mgkg = history != null && history.get("P") != null && !history.get("P").isEmpty() ? history.get("P").get(history.get("P").size() - 1) : 0;
@@ -463,12 +464,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call call, IOException e) {
                 Log.e(TAG, "Plant suggestion API call failed", e);
+                sharedViewModel.setIsSuggesting(false);
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     Log.e(TAG, "Plant suggestion API error: " + response.body().string());
+                    sharedViewModel.setIsSuggesting(false);
                     return;
                 }
 
@@ -491,6 +494,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse suggestion response", e);
+                } finally {
+                    sharedViewModel.setIsSuggesting(false);
                 }
             }
         });
