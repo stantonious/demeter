@@ -1,30 +1,32 @@
 package com.example.demeterclient.ui.aoi;
 
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.CheckBox;
-import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import com.example.demeterclient.PlantSuggestion;
 import com.example.demeterclient.R;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AoiSelectAdapter extends RecyclerView.Adapter<AoiSelectAdapter.SuggestionViewHolder> {
 
-    private List<String> suggestions;
-    private final OnFeasibilityClickListener feasibilityClickListener;
+    private List<PlantSuggestion> suggestions;
+    private final OnItemClickListener listener;
     private final List<String> selectedPlants = new ArrayList<>();
 
-    public interface OnFeasibilityClickListener {
-        void onFeasibilityClick(String plantName);
+    public interface OnItemClickListener {
+        void onItemClick(PlantSuggestion suggestion);
     }
 
-    public AoiSelectAdapter(List<String> suggestions, OnFeasibilityClickListener listener) {
+    public AoiSelectAdapter(List<PlantSuggestion> suggestions, OnItemClickListener listener) {
         this.suggestions = suggestions;
-        this.feasibilityClickListener = listener;
+        this.listener = listener;
     }
 
     @NonNull
@@ -36,26 +38,33 @@ public class AoiSelectAdapter extends RecyclerView.Adapter<AoiSelectAdapter.Sugg
 
     @Override
     public void onBindViewHolder(@NonNull SuggestionViewHolder holder, int position) {
-        String suggestion = suggestions.get(position);
-        holder.plantNameTextView.setText(suggestion);
+        PlantSuggestion suggestion = suggestions.get(position);
+        holder.plantNameTextView.setText(suggestion.getName());
         holder.plantCheckbox.setOnCheckedChangeListener(null); // Avoid listener firing on bind
-        holder.plantCheckbox.setChecked(selectedPlants.contains(suggestion));
+        holder.plantCheckbox.setChecked(selectedPlants.contains(suggestion.getName()));
 
         holder.plantCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                if (!selectedPlants.contains(suggestion)) {
-                    selectedPlants.add(suggestion);
+                if (!selectedPlants.contains(suggestion.getName())) {
+                    selectedPlants.add(suggestion.getName());
                 }
             } else {
-                selectedPlants.remove(suggestion);
+                selectedPlants.remove(suggestion.getName());
             }
         });
 
-        holder.feasibilityIcon.setOnClickListener(v -> {
-            if (feasibilityClickListener != null) {
-                feasibilityClickListener.onFeasibilityClick(suggestion);
-            }
-        });
+        holder.itemView.setOnClickListener(v -> listener.onItemClick(suggestion));
+
+        GradientDrawable background = (GradientDrawable) holder.feasibilityIndicator.getBackground();
+        if (suggestion.getFeasibilityScore() >= 0.7) {
+            background.setColor(Color.GREEN);
+        } else if (suggestion.getFeasibilityScore() >= 0.4) {
+            background.setColor(Color.YELLOW);
+        } else if (suggestion.getFeasibilityScore() >= 0.0){
+            background.setColor(Color.RED);
+        } else {
+            background.setColor(Color.LTGRAY);
+        }
     }
 
     @Override
@@ -67,16 +76,21 @@ public class AoiSelectAdapter extends RecyclerView.Adapter<AoiSelectAdapter.Sugg
         return selectedPlants;
     }
 
+    public void setSuggestions(List<PlantSuggestion> suggestions) {
+        this.suggestions = suggestions;
+        notifyDataSetChanged();
+    }
+
     static class SuggestionViewHolder extends RecyclerView.ViewHolder {
         TextView plantNameTextView;
         CheckBox plantCheckbox;
-        ImageView feasibilityIcon;
+        View feasibilityIndicator;
 
         SuggestionViewHolder(View itemView) {
             super(itemView);
             plantNameTextView = itemView.findViewById(R.id.plant_name_text_view);
             plantCheckbox = itemView.findViewById(R.id.plant_checkbox);
-            feasibilityIcon = itemView.findViewById(R.id.feasibility_icon);
+            feasibilityIndicator = itemView.findViewById(R.id.feasibility_indicator);
         }
     }
 }

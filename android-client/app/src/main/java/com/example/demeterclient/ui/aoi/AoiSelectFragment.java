@@ -13,34 +13,34 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.FileProvider;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.demeterclient.MainActivity;
 import com.example.demeterclient.R;
+import com.example.demeterclient.SharedViewModel;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
-public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFeasibilityClickListener {
+public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnItemClickListener {
 
     private static final int REQUEST_IMAGE_CAPTURE = 1;
     private RecyclerView suggestionsRecyclerView;
     private AoiSelectAdapter adapter;
     private Button takePictureButton;
     private MainActivity mainActivity;
-    private ArrayList<String> suggestions;
+    private SharedViewModel sharedViewModel;
     private Uri photoURI;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mainActivity = (MainActivity) getActivity();
-        if (getArguments() != null) {
-            suggestions = getArguments().getStringArrayList("suggestions");
-        }
+        sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
     }
 
     @Nullable
@@ -52,10 +52,16 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFe
         takePictureButton = view.findViewById(R.id.take_picture_button);
 
         suggestionsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        adapter = new AoiSelectAdapter(suggestions, this);
+        adapter = new AoiSelectAdapter(new ArrayList<>(), this);
         suggestionsRecyclerView.setAdapter(adapter);
 
         takePictureButton.setOnClickListener(v -> dispatchTakePictureIntent());
+
+        sharedViewModel.getPlantSuggestions().observe(getViewLifecycleOwner(), suggestions -> {
+            if (suggestions != null) {
+                adapter.setSuggestions(suggestions);
+            }
+        });
 
         return view;
     }
@@ -105,9 +111,7 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnFe
     }
 
     @Override
-    public void onFeasibilityClick(String plantName) {
-        if (mainActivity != null) {
-            mainActivity.requestFeasibilityAnalysis(plantName);
-        }
+    public void onItemClick(com.example.demeterclient.PlantSuggestion suggestion) {
+        mainActivity.navigateToFeasibilityDetails(suggestion.getName());
     }
 }
