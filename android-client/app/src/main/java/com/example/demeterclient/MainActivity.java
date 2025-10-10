@@ -112,6 +112,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
+        fetchPlantTypes();
+        fetchPlantCharacteristics();
 
         httpClient = new OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
@@ -677,6 +679,98 @@ public class MainActivity extends AppCompatActivity {
                 images.add(originalImage);
                 images.add(augmentedImage);
                 sharedViewModel.setAugmentedResult(images);
+            }
+        });
+    }
+
+    public void fetchPlantTypes() {
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
+                .scheme("https")
+                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("types");
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .get()
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Plant types API call failed", e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    Log.e(TAG, "Plant types API error: " + response.body().string());
+                    return;
+                }
+
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject json = new JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        org.json.JSONArray typesArray = json.getJSONArray("types");
+                        ArrayList<String> typesList = new ArrayList<>();
+                        for (int i = 0; i < typesArray.length(); i++) {
+                            typesList.add(typesArray.getString(i));
+                        }
+                        sharedViewModel.setPlantTypes(typesList);
+                    } else {
+                        Log.e(TAG, "Plant types API returned error: " + json.getString("reason"));
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse plant types response", e);
+                }
+            }
+        });
+    }
+
+    public void fetchPlantCharacteristics() {
+        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
+                .scheme("https")
+                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("characteristics");
+
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .get()
+                .build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Plant characteristics API call failed", e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    Log.e(TAG, "Plant characteristics API error: " + response.body().string());
+                    return;
+                }
+
+                try {
+                    String responseBody = response.body().string();
+                    JSONObject json = new JSONObject(responseBody);
+                    if (json.getBoolean("success")) {
+                        org.json.JSONArray characteristicsArray = json.getJSONArray("types");
+                        ArrayList<String> characteristicsList = new ArrayList<>();
+                        for (int i = 0; i < characteristicsArray.length(); i++) {
+                            characteristicsList.add(characteristicsArray.getString(i));
+                        }
+                        sharedViewModel.setPlantCharacteristics(characteristicsList);
+                    } else {
+                        Log.e(TAG, "Plant characteristics API returned error: " + json.getString("reason"));
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse plant characteristics response", e);
+                }
             }
         });
     }

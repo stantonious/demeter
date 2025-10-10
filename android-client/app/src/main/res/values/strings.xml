@@ -1,32 +1,5 @@
 <resources>
     <string name="app_name">Demeter</string>
-    <string-array name="plant_types">
-        <item>Vegetable</item>
-        <item>Fruit</item>
-        <item>Grass</item>
-        <item>Ground Cover</item>
-        <item>Flower</item>
-        <item>Shrub</item>
-        <item>Perennials</item>
-        <item>Annual</item>
-        <item>Aquatic</item>
-        <item>Succulents</item>
-        <item>Bulbs</item>
-        <item>Climbers</item>
-        <item>Vines</item>
-        <item>Deciduous</item>
-        <item>Biennials</item>
-        <item>Houseplants</item>
-        <item>Tropicals</item>
-        <item>Shade Tree</item>
-        <item>Fruit Tree</item>
-        <item>Evergreen Tree</item>
-    </string-array>
-    <string-array name="sub_types">
-        <item>low water</item>
-        <item>low maint.</item>
-        <item>colorful</item>
-    </string-array>
     <string-array name="age_types">
         <item>young</item>
         <item>mid</item>

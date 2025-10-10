@@ -16,6 +16,8 @@ public class SharedViewModel extends ViewModel {
     private final MutableLiveData<Integer> augmentSize = new MutableLiveData<>(65); // Default size
     private final MutableLiveData<Boolean> isSuggesting = new MutableLiveData<>(false);
     private final MutableLiveData<List<PlantSuggestion>> plantSuggestions = new MutableLiveData<>();
+    private final MutableLiveData<List<String>> plantTypes = new MutableLiveData<>();
+    private final MutableLiveData<List<String>> plantCharacteristics = new MutableLiveData<>();
 
     private String plantType;
     private String subType;
@@ -115,6 +117,22 @@ public class SharedViewModel extends ViewModel {
         }
     }
 
+    public LiveData<List<String>> getPlantTypes() {
+        return plantTypes;
+    }
+
+    public void setPlantTypes(List<String> types) {
+        plantTypes.postValue(types);
+    }
+
+    public LiveData<List<String>> getPlantCharacteristics() {
+        return plantCharacteristics;
+    }
+
+    public void setPlantCharacteristics(List<String> characteristics) {
+        plantCharacteristics.postValue(characteristics);
+    }
+
     public void clear() {
         sensorDataHistory.postValue(new HashMap<>());
         bleConnectionStatus.postValue(MainActivity.BleConnectionStatus.DISCONNECTED);
@@ -123,6 +141,8 @@ public class SharedViewModel extends ViewModel {
         augmentSize.setValue(65);
         isSuggesting.postValue(false);
         plantSuggestions.postValue(new ArrayList<>());
+        plantTypes.postValue(new ArrayList<>());
+        plantCharacteristics.postValue(new ArrayList<>());
         plantType = null;
         subType = null;
         age = null;

@@ -14,6 +14,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import java.util.List;
 
 public class SuggestFragment extends Fragment {
 
@@ -49,15 +50,21 @@ public class SuggestFragment extends Fragment {
         suggestButton = view.findViewById(R.id.suggest_button);
 
         // Populate spinners
-        ArrayAdapter<CharSequence> plantTypeAdapter = ArrayAdapter.createFromResource(requireContext(),
-                R.array.plant_types, android.R.layout.simple_spinner_item);
-        plantTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        plantTypeSpinner.setAdapter(plantTypeAdapter);
+        sharedViewModel.getPlantTypes().observe(getViewLifecycleOwner(), types -> {
+            if (types != null) {
+                ArrayAdapter<String> plantTypeAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, types);
+                plantTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                plantTypeSpinner.setAdapter(plantTypeAdapter);
+            }
+        });
 
-        ArrayAdapter<CharSequence> subTypeAdapter = ArrayAdapter.createFromResource(requireContext(),
-                R.array.sub_types, android.R.layout.simple_spinner_item);
-        subTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        subTypeSpinner.setAdapter(subTypeAdapter);
+        sharedViewModel.getPlantCharacteristics().observe(getViewLifecycleOwner(), characteristics -> {
+            if (characteristics != null) {
+                ArrayAdapter<String> subTypeAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, characteristics);
+                subTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                subTypeSpinner.setAdapter(subTypeAdapter);
+            }
+        });
 
         ArrayAdapter<CharSequence> ageAdapter = ArrayAdapter.createFromResource(requireContext(),
                 R.array.age_types, android.R.layout.simple_spinner_item);
