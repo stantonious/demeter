@@ -52,6 +52,8 @@ if not logger.handlers:
 storage_client = storage.Client()
 demeter_bucket_name = "stantonious-demeter"
 demeter_bucket = storage_client.bucket(demeter_bucket_name)
+demeter_plants_bucket_name = "stantonious-demeter-plants"
+demeter_plants_bucket = storage_client.bucket(demeter_plants_bucket_name)
 # feyrle_bucket = storage_client.bucket(db.feyrle_bucket_name)
 
 
@@ -86,8 +88,6 @@ def _construct_gcs_url(bucket_name, blob_name):
     return GCS_URL_FORMAT.format(bucket_name=bucket_name, blob_name=blob_name)
 
 
-
-
 @app.route("/demeter/plant/suggest", methods=["GET"])
 @cross_origin()
 def suggest_plant():
@@ -109,7 +109,16 @@ def suggest_plant():
 
         # Generate prompt
         prompt = utils.generate_plant_prompt(
-            n_mgkg, p_mgkg, k_mgkg, ph, moisture, sun_intensity, lat, lon, plant_type, max_plants
+            n_mgkg,
+            p_mgkg,
+            k_mgkg,
+            ph,
+            moisture,
+            sun_intensity,
+            lat,
+            lon,
+            plant_type,
+            max_plants,
         )
 
         # Get API key and client
@@ -135,20 +144,80 @@ def suggest_plant():
 
     except Exception as e:
         logger.error(f"Error in plant suggestion: {e}", exc_info=True)
-        return json.dumps({"success": False, "reason": "An internal error occurred."}), 500
-
-
+        return (
+            json.dumps({"success": False, "reason": "An internal error occurred."}),
+            500,
+        )
 
 
 @app.route("/demeter/data/types", methods=["GET"])
 @cross_origin()
 def plant_types():
-        return json.dumps({"success": True, "types": database.PLANT_TYPES}), 200
+    return json.dumps({"success": True, "types": database.PLANT_TYPES}), 200
+
 
 @app.route("/demeter/data/characteristics", methods=["GET"])
 @cross_origin()
 def plant_characteristics():
-        return json.dumps({"success": True, "types": database.PLANT_CHARACTERISTICS}), 200
+    return json.dumps({"success": True, "types": database.PLANT_CHARACTERISTICS}), 200
+
+
+@app.route("/demeter/data/maturity", methods=["GET"])
+@cross_origin()
+def plant_maturity():
+    return json.dumps({"success": True, "types": database.PLANT_MATURITY}), 200
+
+
+def _create_plant_image(plant_name, plant_type):
+    prompt = (
+        f"A single, well-trimmed {plant_name} {plant_type} isolated on a white background,"
+        "top-down soft lighting, no shadows, high-resolution botanical detail, suitable "
+        "for compositing into landscape or garden scenes, realistic texture and leaf structure,"
+        "centered composition"
+    )
+    api_key = _get_openai_api_key()
+    if not api_key:
+        return json.dumps({"success": False, "reason": "Missing API key."}), 500
+    oai_client = OpenAI(api_key=api_key)
+    response = oai_client.images.generate(
+        model="dall-e-3", prompt=prompt, n=1, size="1024x1024", quality="standard"
+    )
+    dalle_url = response.data[0].url
+    logger.debug(f"Fetching DALL-E image from URL: {dalle_url}")
+
+    with urllib.request.urlopen(dalle_url) as img_response:
+        img_bytes = img_response.read()
+
+    img_name = f"{plant_name}.png"
+    asset_uri = _construct_gcs_url(demeter_plants_bucket_name, img_name)
+
+    blob_full = demeter_plants_bucket.blob(img_name)
+    blob_full.upload_from_string(img_bytes, content_type="image/png")
+    return database.save_plant_data_fb(
+        plant_name, plant_prompt=prompt, plant_type=plant_type,uri=asset_uri
+    )
+
+
+@app.route("/demeter/plant/img", methods=["GET"])
+@cross_origin()
+def plant_image():
+    plant_name = request.args.get("plant_name", type=str)
+    plant_type = request.args.get("plant_type", type=str)
+
+    doc = database.get_plant_rec(plant_name)
+
+    if doc is None:
+        doc = _create_plant_image(plant_name,plant_type)
+
+    return (
+        json.dumps({"success": True, "assetURI": doc['uri']}),
+        200,
+        {"ContentType": "application/json"},
+    )
+    
+
+
+
 
 @app.route("/demeter/plant/feasibility", methods=["GET"])
 @cross_origin()
@@ -160,7 +229,12 @@ def plant_feasibility():
         # Extract parameters from request
         plant_type = request.args.get("plant_type", type=str)
         if not plant_type:
-            return json.dumps({"success": False, "reason": "Missing 'plant_type' parameter."}), 400
+            return (
+                json.dumps(
+                    {"success": False, "reason": "Missing 'plant_type' parameter."}
+                ),
+                400,
+            )
 
         n_mgkg = request.args.get("n_mgkg", default=0, type=float)
         p_mgkg = request.args.get("p_mgkg", default=0, type=float)
@@ -188,7 +262,10 @@ def plant_feasibility():
             model="gpt-3.5-turbo",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant designed to output JSON.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -198,7 +275,10 @@ def plant_feasibility():
 
     except Exception as e:
         logger.error(f"Error in plant feasibility: {e}", exc_info=True)
-        return json.dumps({"success": False, "reason": "An internal error occurred."}), 500
+        return (
+            json.dumps({"success": False, "reason": "An internal error occurred."}),
+            500,
+        )
 
 
 @app.route("/demeter/product/create", methods=["POST"])
@@ -210,8 +290,8 @@ def create_dalle():
     def _get_bb(x, y, s):
         return int(x - s / 2), int(y - s / 2), int(x + s / 2), int(y + s / 2)
 
-    def _scale_aoi(x, y, x_scale,y_scale):
-        return int(x * x_scale), int(y * y_scale )
+    def _scale_aoi(x, y, x_scale, y_scale):
+        return int(x * x_scale), int(y * y_scale)
 
     print("args", request.args)
     aois = _decode_aois(request.args.getlist("aois"))
@@ -228,17 +308,23 @@ def create_dalle():
 
     if request.method == "POST":
         if "scene_img" not in request.files:
-            return json.dumps({"success": False, "reason": "No file provided."}), 500, {"ContentType": "application/json"}
+            return (
+                json.dumps({"success": False, "reason": "No file provided."}),
+                500,
+                {"ContentType": "application/json"},
+            )
 
-        in_image = Image.open(request.files["scene_img"]).convert("RGBA").resize((512, 512))
-        print ('image size',in_image.size)
-        x_scale = 512/in_image.size[0]
-        y_scale = 512/in_image.size[1]
+        in_image = (
+            Image.open(request.files["scene_img"]).convert("RGBA").resize((512, 512))
+        )
+        print("image size", in_image.size)
+        x_scale = 512 / in_image.size[0]
+        y_scale = 512 / in_image.size[1]
 
         try:
             cur_img = in_image
             for idx, aoi in enumerate(aois):
-                scaled_aoi = _scale_aoi(*aoi,x_scale,y_scale)
+                scaled_aoi = _scale_aoi(*aoi, x_scale, y_scale)
                 bb = _get_bb(*scaled_aoi, mask_size)
                 print(f"AOI {idx}: Bounding box {bb}")
 
@@ -278,7 +364,7 @@ def create_dalle():
                         "Appears as a native resident of this landscape."
                     )
 
-                print ('prompt',prompt)
+                print("prompt", prompt)
 
                 response = oai_client.images.edit(
                     model="dall-e-2",
@@ -294,14 +380,26 @@ def create_dalle():
 
                 img_name = f"{productID_base}-{idx}.png"
                 asset_uri = _construct_gcs_url(demeter_bucket_name, img_name)
-                demeter_bucket.blob(img_name).upload_from_string(response_data, content_type="image/png")
-                demeter_bucket.blob("mask.png").upload_from_string(mask_bytes.getvalue(), content_type="image/png")
+                demeter_bucket.blob(img_name).upload_from_string(
+                    response_data, content_type="image/png"
+                )
+                demeter_bucket.blob("mask.png").upload_from_string(
+                    mask_bytes.getvalue(), content_type="image/png"
+                )
 
                 cur_img = Image.open(io.BytesIO(response_data))
                 final_uri = asset_uri
-                print ('final uri',final_uri)
+                print("final uri", final_uri)
 
         except Exception as e:
-            return json.dumps({"success": False, "reason": f"Dalle error. {e}"}), 500, {"ContentType": "application/json"}
+            return (
+                json.dumps({"success": False, "reason": f"Dalle error. {e}"}),
+                500,
+                {"ContentType": "application/json"},
+            )
 
-    return json.dumps({"success": True, "assetURI": final_uri}), 200, {"ContentType": "application/json"}
+    return (
+        json.dumps({"success": True, "assetURI": final_uri}),
+        200,
+        {"ContentType": "application/json"},
+    )
