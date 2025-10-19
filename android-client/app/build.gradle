@@ -43,4 +43,6 @@ dependencies {
     implementation("io.getstream:photoview:1.0.3")
     implementation "androidx.lifecycle:lifecycle-viewmodel:2.7.0"
     implementation "androidx.lifecycle:lifecycle-livedata:2.7.0"
+    implementation 'com.github.bumptech.glide:glide:4.14.2'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.14.2'
 }
