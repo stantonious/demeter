@@ -409,9 +409,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void fetchPlantTypes() {
-        HttpUrl url = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
                 .addPathSegment("demeter")
                 .addPathSegment("data")
                 .addPathSegment("types")
@@ -445,9 +443,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void fetchPlantCharacteristics() {
-        HttpUrl url = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
                 .addPathSegment("demeter")
                 .addPathSegment("data")
                 .addPathSegment("characteristics")
@@ -511,9 +507,7 @@ public class MainActivity extends AppCompatActivity {
         float moisture = history != null && history.get("Moisture") != null && !history.get("Moisture").isEmpty() ? history.get("Moisture").get(history.get("Moisture").size() - 1) : 50;
         float sun_intensity = history != null && history.get("Sun") != null && !history.get("Sun").isEmpty() ? history.get("Sun").get(history.get("Sun").size() - 1) : 50000;
 
-        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(Constants.BASE_URL).newBuilder()
                 .addPathSegment("demeter")
                 .addPathSegment("plant")
                 .addPathSegment("suggest")
@@ -587,9 +581,7 @@ public class MainActivity extends AppCompatActivity {
         float moisture = history != null && history.get("Moisture") != null && !history.get("Moisture").isEmpty() ? history.get("Moisture").get(history.get("Moisture").size() - 1) : 50;
         float sun_intensity = history != null && history.get("Sun") != null && !history.get("Sun").isEmpty() ? history.get("Sun").get(history.get("Sun").size() - 1) : 50000;
 
-        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(Constants.BASE_URL).newBuilder()
                 .addPathSegment("demeter")
                 .addPathSegment("plant")
                 .addPathSegment("feasibility")
@@ -667,9 +659,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        HttpUrl.Builder urlBuilder = new HttpUrl.Builder()
-                .scheme("https")
-                .host("demeter-dot-heph2-338519.uc.r.appspot.com")
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(Constants.BASE_URL).newBuilder()
                 .addPathSegment("demeter")
                 .addPathSegment("product")
                 .addPathSegment("create")

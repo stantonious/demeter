@@ -32,8 +32,7 @@
             android:id="@+id/sub_type_spinner"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:entries="@array/plant_characteristics"/>
+            android:layout_marginBottom="16dp"/>
 
         <TextView
             android:layout_width="wrap_content"
