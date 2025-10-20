@@ -22,10 +22,7 @@
         <item>Fruit Tree</item>
         <item>Evergreen Tree</item>
     </string-array>
-    <string-array name="sub_types">
-        <item>low water</item>
-        <item>low maint.</item>
-        <item>colorful</item>
+    <string-array name="plant_characteristics">
     </string-array>
     <string-array name="age_types">
         <item>young</item>
