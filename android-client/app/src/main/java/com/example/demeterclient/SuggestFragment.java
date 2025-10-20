@@ -49,15 +49,21 @@ public class SuggestFragment extends Fragment {
         suggestButton = view.findViewById(R.id.suggest_button);
 
         // Populate spinners
-        ArrayAdapter<CharSequence> plantTypeAdapter = ArrayAdapter.createFromResource(requireContext(),
-                R.array.plant_types, android.R.layout.simple_spinner_item);
-        plantTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        plantTypeSpinner.setAdapter(plantTypeAdapter);
+        sharedViewModel.getPlantTypes().observe(getViewLifecycleOwner(), plantTypes -> {
+            if (plantTypes != null) {
+                ArrayAdapter<String> plantTypeAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, plantTypes);
+                plantTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                plantTypeSpinner.setAdapter(plantTypeAdapter);
+            }
+        });
 
-        ArrayAdapter<CharSequence> subTypeAdapter = ArrayAdapter.createFromResource(requireContext(),
-                R.array.sub_types, android.R.layout.simple_spinner_item);
-        subTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        subTypeSpinner.setAdapter(subTypeAdapter);
+        sharedViewModel.getPlantCharacteristics().observe(getViewLifecycleOwner(), plantCharacteristics -> {
+            if (plantCharacteristics != null) {
+                ArrayAdapter<String> characteristicAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, plantCharacteristics);
+                characteristicAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                subTypeSpinner.setAdapter(characteristicAdapter);
+            }
+        });
 
         ArrayAdapter<CharSequence> ageAdapter = ArrayAdapter.createFromResource(requireContext(),
                 R.array.age_types, android.R.layout.simple_spinner_item);
