@@ -116,7 +116,7 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnIt
         Intent intent = new Intent(getActivity(), FeasibilityActivity.class);
         intent.putExtra("feasibility_text", suggestion.getFeasibilityJson());
         intent.putExtra("plant_name", suggestion.getName());
-        intent.putExtra("plant_type", sharedViewModel.getPlantType().getValue());
+        intent.putExtra("plant_type", sharedViewModel.getPlantType());
         startActivity(intent);
     }
 }
