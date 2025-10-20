@@ -17,10 +17,13 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import androidx.lifecycle.ViewModelProvider;
+
 
 public class FeasibilityActivity extends AppCompatActivity {
 
     private ImageView plantImageView;
+    private SharedViewModel sharedViewModel;
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(60, TimeUnit.SECONDS)
@@ -31,6 +34,7 @@ public class FeasibilityActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_feasibility);
+        sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
 
         plantImageView = findViewById(R.id.plant_image_view);
         TextView feasibilityScoreTextView = findViewById(R.id.feasibility_score_text_view);
@@ -88,9 +92,14 @@ public class FeasibilityActivity extends AppCompatActivity {
                 analysisSummaryTextView.setText("Error parsing feasibility data.");
             }
         }
+
+        sharedViewModel.getIsFetchingImage().observe(this, isFetching -> {
+            findViewById(R.id.image_loading_progress_bar).setVisibility(isFetching ? View.VISIBLE : View.GONE);
+        });
     }
 
     private void fetchAndLoadImage(String plantName, String plantType) {
+        sharedViewModel.setIsFetchingImage(true);
         String url = Constants.BASE_URL + "/demeter/plant/img?plant_name=" + plantName + "&plant_type=" + plantType;
         Request request = new Request.Builder().url(url).build();
 
@@ -98,7 +107,10 @@ public class FeasibilityActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 e.printStackTrace();
-                runOnUiThread(() -> Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView));
+                runOnUiThread(() -> {
+                    sharedViewModel.setIsFetchingImage(false);
+                    Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView);
+                });
             }
 
             @Override
@@ -108,13 +120,22 @@ public class FeasibilityActivity extends AppCompatActivity {
                         String responseBody = response.body().string();
                         JSONObject json = new JSONObject(responseBody);
                         String imageUrl = json.getString("assetURI");
-                        runOnUiThread(() -> Glide.with(FeasibilityActivity.this).load(imageUrl).placeholder(R.drawable.led_grey).into(plantImageView));
+                        runOnUiThread(() -> {
+                            sharedViewModel.setIsFetchingImage(false);
+                            Glide.with(FeasibilityActivity.this).load(imageUrl).placeholder(R.drawable.led_grey).into(plantImageView);
+                        });
                     } catch (JSONException e) {
                         e.printStackTrace();
-                        runOnUiThread(() -> Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView));
+                        runOnUiThread(() -> {
+                            sharedViewModel.setIsFetchingImage(false);
+                            Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView);
+                        });
                     }
                 } else {
-                    runOnUiThread(() -> Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView));
+                    runOnUiThread(() -> {
+                        sharedViewModel.setIsFetchingImage(false);
+                        Glide.with(FeasibilityActivity.this).load(R.drawable.led_red).into(plantImageView);
+                    });
                 }
             }
         });
