@@ -34,8 +34,8 @@
                 android:id="@+id/plant_image_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:scaleType="fitCenter"
-                android:adjustViewBounds="true"/>
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter" />
 
             <ProgressBar
                 android:id="@+id/image_loading_progress_bar"
@@ -47,6 +47,7 @@
         </FrameLayout>
 
         <LinearLayout
+            android:id="@+id/side_text_layout"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_below="@id/plant_name_title_text_view"
@@ -83,6 +84,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="16dp"
                 android:textSize="16sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/bottom_text_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/plant_image_frame"
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/detailed_analysis_title"
@@ -112,7 +121,6 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="16sp" />
-
         </LinearLayout>
     </RelativeLayout>
 </ScrollView>
