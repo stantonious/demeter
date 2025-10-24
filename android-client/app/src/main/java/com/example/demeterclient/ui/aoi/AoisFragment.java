@@ -48,6 +48,7 @@ public class AoisFragment extends Fragment {
     private Paint paint;
     private ArrayList<Integer> aoiPoints = new ArrayList<>();
     private ArrayList<String> selectedPlants;
+    private ArrayList<String> aoiPlantNames = new ArrayList<>();
     private String imageUriString;
     private List<Integer> aoiColors = new ArrayList<>();
     private int currentAugmentSize = 65;
@@ -89,7 +90,7 @@ public class AoisFragment extends Fragment {
                 String plantType = sharedViewModel.getPlantType();
                 String subType = sharedViewModel.getSubType();
                 String age = sharedViewModel.getAge();
-                mainActivity.requestAugmentedImage(imageUriString, selectedPlants, getScaledAoiPoints(), plantType, subType, age);
+                mainActivity.requestAugmentedImage(imageUriString, aoiPlantNames, getScaledAoiPoints(), plantType, subType, age);
             }
         });
 
@@ -195,6 +196,12 @@ public class AoisFragment extends Fragment {
 
                         aoiPoints.add(x);
                         aoiPoints.add(y);
+
+                        String selectedPlant = (String) aoiTypeSpinner.getSelectedItem();
+                        if (selectedPlant != null) {
+                            aoiPlantNames.add(selectedPlant);
+                        }
+
                         canvas.drawCircle(x, y, markerRadius, paint);
                         previewImageView.invalidate();
                     }

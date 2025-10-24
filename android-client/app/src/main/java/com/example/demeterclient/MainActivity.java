@@ -564,7 +564,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void requestAugmentedImage(String imageUriString, ArrayList<String> selectedPlants, ArrayList<Integer> aoiList, String plantType, String subType, String age) {
+    public void requestAugmentedImage(String imageUriString, ArrayList<String> aoiPlantNames, ArrayList<Integer> aoiList, String plantType, String subType, String age) {
         byte[] originalImageData;
         try {
             Uri imageUri = Uri.parse(imageUriString);
@@ -602,7 +602,7 @@ public class MainActivity extends AppCompatActivity {
                 .addQueryParameter("age", age)
                 .addQueryParameter("mask_size", String.valueOf(sharedViewModel.getAugmentSize().getValue()));
 
-        for (String plantName : selectedPlants) {
+        for (String plantName : aoiPlantNames) {
             urlBuilder.addQueryParameter("plant_name", plantName);
         }
 
