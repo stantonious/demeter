@@ -150,6 +150,9 @@ public class MainActivity extends AppCompatActivity {
         updateDemeterLedIndicator(true);
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        fetchPlantTypes();
+        fetchPlantCharacteristics();
     }
 
     @Override
@@ -717,6 +720,74 @@ public class MainActivity extends AppCompatActivity {
                 images.add(originalImage);
                 images.add(augmentedImage);
                 sharedViewModel.setAugmentedResult(images);
+            }
+        });
+    }
+
+    private void fetchPlantTypes() {
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("types")
+                .build();
+
+        Request request = new Request.Builder().url(url).build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to fetch plant types", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    try {
+                        JSONObject json = new JSONObject(response.body().string());
+                        org.json.JSONArray typesArray = json.getJSONArray("types");
+                        ArrayList<String> types = new ArrayList<>();
+                        for (int i = 0; i < typesArray.length(); i++) {
+                            types.add(typesArray.getString(i));
+                        }
+                        sharedViewModel.setPlantTypes(types);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to parse plant types", e);
+                    }
+                }
+            }
+        });
+    }
+
+    private void fetchPlantCharacteristics() {
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("characteristics")
+                .build();
+
+        Request request = new Request.Builder().url(url).build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to fetch plant characteristics", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    try {
+                        JSONObject json = new JSONObject(response.body().string());
+                        org.json.JSONArray characteristicsArray = json.getJSONArray("characteristics");
+                        ArrayList<String> characteristics = new ArrayList<>();
+                        for (int i = 0; i < characteristicsArray.length(); i++) {
+                            characteristics.add(characteristicsArray.getString(i));
+                        }
+                        sharedViewModel.setPlantCharacteristics(characteristics);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to parse plant characteristics", e);
+                    }
+                }
             }
         });
     }
