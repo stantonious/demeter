@@ -159,13 +159,13 @@ def plant_types():
 @app.route("/demeter/data/characteristics", methods=["GET"])
 @cross_origin()
 def plant_characteristics():
-    return json.dumps({"success": True, "types": database.PLANT_CHARACTERISTICS}), 200
+    return json.dumps({"success": True, "characteristics": database.PLANT_CHARACTERISTICS}), 200
 
 
 @app.route("/demeter/data/maturity", methods=["GET"])
 @cross_origin()
 def plant_maturity():
-    return json.dumps({"success": True, "types": database.PLANT_MATURITY}), 200
+    return json.dumps({"success": True, "maturities": database.PLANT_MATURITY}), 200
 
 
 def _create_plant_image(plant_name, plant_type):
