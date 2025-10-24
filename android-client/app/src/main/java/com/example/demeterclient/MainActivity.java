@@ -41,6 +41,10 @@ import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final long SCAN_PERIOD = 10000;
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 2;
 
     private AppBarConfiguration appBarConfiguration;
     private NavController navController;
@@ -99,6 +104,12 @@ public class MainActivity extends AppCompatActivity {
     private boolean isWriting = false;
 
     private OkHttpClient httpClient;
+
+    private FusedLocationProviderClient fusedLocationClient;
+    private String lastPlantType;
+    private String lastSubType;
+    private String lastAge;
+    private int lastNumSuggestions;
 
     private List<UUID> characteristicsToSubscribe;
     private int currentSubscriptionIndex = 0;
@@ -137,6 +148,8 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter = bluetoothManager.getAdapter();
         startBleScan();
         updateDemeterLedIndicator(true);
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
     }
 
     @Override
@@ -173,6 +186,12 @@ public class MainActivity extends AppCompatActivity {
             }
             if (allGranted) startBleScan();
             else Toast.makeText(this, "Permissions are required.", Toast.LENGTH_LONG).show();
+        } else if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                requestLocationForSuggestion(lastPlantType, lastSubType, lastAge, lastNumSuggestions);
+            } else {
+                Toast.makeText(this, "Location permission is required for suggestions.", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -431,7 +450,30 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void requestPlantSuggestion(String plantType, String subType, String age, int numSuggestions) {
+    public void requestLocationForSuggestion(String plantType, String subType, String age, int numSuggestions) {
+        this.lastPlantType = plantType;
+        this.lastSubType = subType;
+        this.lastAge = age;
+        this.lastNumSuggestions = numSuggestions;
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            }, LOCATION_PERMISSION_REQUEST_CODE);
+        } else {
+            fusedLocationClient.getLastLocation()
+                    .addOnSuccessListener(this, location -> {
+                        if (location != null) {
+                            requestPlantSuggestion(plantType, subType, age, numSuggestions, location.getLatitude(), location.getLongitude());
+                        } else {
+                            requestPlantSuggestion(plantType, subType, age, numSuggestions, 39.5186, -104.7614);
+                        }
+                    });
+        }
+    }
+
+    public void requestPlantSuggestion(String plantType, String subType, String age, int numSuggestions, double lat, double lon) {
         sharedViewModel.setIsSuggesting(true);
         HashMap<String, ArrayList<Float>> history = sharedViewModel.getSensorDataHistory().getValue();
         float n_mgkg = history != null && history.get("N") != null && !history.get("N").isEmpty() ? history.get("N").get(history.get("N").size() - 1) : 0;
@@ -451,8 +493,8 @@ public class MainActivity extends AppCompatActivity {
                 .addQueryParameter("ph", String.valueOf(ph))
                 .addQueryParameter("moisture", String.valueOf(moisture))
                 .addQueryParameter("sun_intensity", String.valueOf(sun_intensity))
-                .addQueryParameter("lat", "39.5186")
-                .addQueryParameter("lon", "-104.7614")
+                .addQueryParameter("lat", String.valueOf(lat))
+                .addQueryParameter("lon", String.valueOf(lon))
                 .addQueryParameter("plant_type", plantType)
                 .addQueryParameter("sub_type", subType)
                 .addQueryParameter("age", age)

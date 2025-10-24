@@ -110,7 +110,7 @@ public class SuggestFragment extends Fragment {
                 sharedViewModel.setSubType(subType);
                 sharedViewModel.setAge(age);
 
-                mainActivity.requestPlantSuggestion(plantType, subType, age, numSuggestions);
+                mainActivity.requestLocationForSuggestion(plantType, subType, age, numSuggestions);
             }
         });
 
