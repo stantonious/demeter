@@ -4,6 +4,7 @@ Routes for the Demeter Dalle Service, handling DALL-E image generation and produ
 
 import sys
 import os
+import re
 import io
 import json
 from flask import request
@@ -140,6 +141,8 @@ def suggest_plant():
 
         # Format and return response
         suggestions = [s.strip() for s in response.strip().split("\n") if s.strip()]
+        suggestions = [re.sub('^[- ]*','',_n) for _n in suggestions]
+        suggestions = [re.sub('[- ]+$','',_n) for _n in suggestions]
         return json.dumps({"success": True, "suggestions": suggestions}), 200
 
     except Exception as e:
@@ -348,7 +351,8 @@ def create_dalle():
                 mask_bytes.seek(0)
                 mask_bytes.name = "mask.png"
 
-                if plant_names[idx] in plant_names[:idx]:
+                #if plant_names[idx] in plant_names[:idx]:
+                if False:
                     prompt = (
                         f"Inpaint another {plant_names[idx]} {plant_type} plant of the same type as already in the image, "
                         f"This plant is a {sub_type} and is {age}. "
@@ -357,10 +361,10 @@ def create_dalle():
                     )
                 else:
                     prompt = (
-                        f"A {age}, vibrant {plant_names[idx]} {plant_type} plant. This plant is a {sub_type}. "
+                        f"An ultra realistic, {sub_type} {plant_names[idx]} of type {plant_type}. "
                         "The plant is in a natural scene with shadows cast onto the surrounding terrain. "
                         "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
-                        "The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
+                        #"The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
                         "Appears as a native resident of this landscape."
                     )
 
