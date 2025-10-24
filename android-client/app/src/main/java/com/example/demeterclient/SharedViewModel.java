@@ -23,6 +23,15 @@ public class SharedViewModel extends ViewModel {
     private String plantType;
     private String subType;
     private String age;
+    private final MutableLiveData<String> imageUri = new MutableLiveData<>();
+
+    public LiveData<String> getImageUri() {
+        return imageUri;
+    }
+
+    public void setImageUri(String uri) {
+        imageUri.setValue(uri);
+    }
 
     public LiveData<HashMap<String, ArrayList<Float>>> getSensorDataHistory() {
         return sensorDataHistory;
@@ -129,6 +138,7 @@ public class SharedViewModel extends ViewModel {
         plantType = null;
         subType = null;
         age = null;
+        imageUri.setValue(null);
     }
 
     public LiveData<List<String>> getPlantTypes() {
