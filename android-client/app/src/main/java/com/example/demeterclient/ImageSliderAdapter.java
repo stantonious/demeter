@@ -18,7 +18,7 @@ public class ImageSliderAdapter extends FragmentStateAdapter {
     @NonNull
     @Override
     public Fragment createFragment(int position) {
-        return ImageFragment.newInstance(images.get(position));
+        return ImageFragment.newInstance(position);
     }
 
     @Override
