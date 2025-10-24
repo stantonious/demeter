@@ -5,22 +5,37 @@
     android:layout_height="match_parent"
     tools:context=".FeasibilityActivity">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:padding="16dp">
 
-        <FrameLayout
+        <TextView
+            android:id="@+id/plant_name_title_text_view"
             android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:layout_marginBottom="16dp">
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="16dp"
+            android:gravity="center"
+            android:text="Plant Name"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <FrameLayout
+            android:id="@+id/plant_image_frame"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/plant_name_title_text_view"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="16dp">
 
             <ImageView
                 android:id="@+id/plant_image_view"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="fitCenter" />
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:scaleType="fitCenter"
+                android:adjustViewBounds="true"/>
 
             <ProgressBar
                 android:id="@+id/image_loading_progress_bar"
@@ -31,60 +46,73 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Feasibility Score"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:layout_below="@id/plant_name_title_text_view"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@id/plant_image_frame"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/feasibility_score_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/feasibility_score_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Feasibility Score"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Analysis Summary"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/feasibility_score_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/analysis_summary_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/analysis_summary_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Analysis Summary"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Detailed Analysis"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/analysis_summary_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/detailed_analysis_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/detailed_analysis_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Detailed Analysis"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Recommendations"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/detailed_analysis_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:textSize="16sp" />
 
-        <TextView
-            android:id="@+id/recommendations_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="16sp" />
+            <TextView
+                android:id="@+id/recommendations_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Recommendations"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-    </LinearLayout>
+            <TextView
+                android:id="@+id/recommendations_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+    </RelativeLayout>
 </ScrollView>

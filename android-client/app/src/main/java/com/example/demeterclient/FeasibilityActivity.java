@@ -38,6 +38,13 @@ public class FeasibilityActivity extends AppCompatActivity {
         sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
 
         plantImageView = findViewById(R.id.plant_image_view);
+
+        // Set image view width to half of the screen width
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int newWidth = screenWidth / 2;
+        plantImageView.getLayoutParams().width = newWidth;
+        plantImageView.requestLayout();
+        TextView plantNameTitleTextView = findViewById(R.id.plant_name_title_text_view);
         TextView feasibilityScoreTextView = findViewById(R.id.feasibility_score_text_view);
         TextView analysisSummaryTextView = findViewById(R.id.analysis_summary_text_view);
         TextView detailedAnalysisTextView = findViewById(R.id.detailed_analysis_text_view);
@@ -45,6 +52,7 @@ public class FeasibilityActivity extends AppCompatActivity {
 
         String feasibilityText = getIntent().getStringExtra("feasibility_text");
         String plantName = getIntent().getStringExtra("plant_name");
+        plantNameTitleTextView.setText(plantName);
         String plantType = getIntent().getStringExtra("plant_type");
 
         if (plantName != null && plantType != null) {
