@@ -1,6 +1,7 @@
 package com.example.demeterclient;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,8 +16,23 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
 public class SuggestFragment extends Fragment {
 
+    private static final String TAG = "SuggestFragment";
     private Spinner plantTypeSpinner;
     private Spinner subTypeSpinner;
     private Spinner ageSpinner;
@@ -24,12 +40,16 @@ public class SuggestFragment extends Fragment {
     private Button suggestButton;
     private MainActivity mainActivity;
     private SharedViewModel sharedViewModel;
+    private OkHttpClient httpClient;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mainActivity = (MainActivity) getActivity();
         sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
+        if (mainActivity != null) {
+            httpClient = mainActivity.getHttpClient();
+        }
     }
 
     @Nullable
@@ -47,6 +67,9 @@ public class SuggestFragment extends Fragment {
         ageSpinner = view.findViewById(R.id.age_spinner);
         numSuggestionsEditText = view.findViewById(R.id.num_suggestions_edit_text);
         suggestButton = view.findViewById(R.id.suggest_button);
+
+        fetchPlantTypes();
+        fetchPlantCharacteristics();
 
         // Populate spinners
         sharedViewModel.getPlantTypes().observe(getViewLifecycleOwner(), plantTypes -> {
@@ -96,6 +119,74 @@ public class SuggestFragment extends Fragment {
                 view.findViewById(R.id.suggest_progress_bar).setVisibility(View.VISIBLE);
             } else {
                 view.findViewById(R.id.suggest_progress_bar).setVisibility(View.GONE);
+            }
+        });
+    }
+
+    private void fetchPlantTypes() {
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("types")
+                .build();
+
+        Request request = new Request.Builder().url(url).build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to fetch plant types", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    try {
+                        JSONObject json = new JSONObject(response.body().string());
+                        org.json.JSONArray typesArray = json.getJSONArray("types");
+                        ArrayList<String> types = new ArrayList<>();
+                        for (int i = 0; i < typesArray.length(); i++) {
+                            types.add(typesArray.getString(i));
+                        }
+                        sharedViewModel.setPlantTypes(types);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to parse plant types", e);
+                    }
+                }
+            }
+        });
+    }
+
+    private void fetchPlantCharacteristics() {
+        HttpUrl url = HttpUrl.parse(Constants.BASE_URL).newBuilder()
+                .addPathSegment("demeter")
+                .addPathSegment("data")
+                .addPathSegment("characteristics")
+                .build();
+
+        Request request = new Request.Builder().url(url).build();
+
+        httpClient.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "Failed to fetch plant characteristics", e);
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (response.isSuccessful()) {
+                    try {
+                        JSONObject json = new JSONObject(response.body().string());
+                        org.json.JSONArray characteristicsArray = json.getJSONArray("characteristics");
+                        ArrayList<String> characteristics = new ArrayList<>();
+                        for (int i = 0; i < characteristicsArray.length(); i++) {
+                            characteristics.add(characteristicsArray.getString(i));
+                        }
+                        sharedViewModel.setPlantCharacteristics(characteristics);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "Failed to parse plant characteristics", e);
+                    }
+                }
             }
         });
     }

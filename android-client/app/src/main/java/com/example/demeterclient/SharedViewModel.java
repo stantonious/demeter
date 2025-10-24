@@ -18,6 +18,7 @@ public class SharedViewModel extends ViewModel {
     private final MutableLiveData<List<PlantSuggestion>> plantSuggestions = new MutableLiveData<>();
     private final MutableLiveData<List<String>> plantTypes = new MutableLiveData<>();
     private final MutableLiveData<List<String>> plantCharacteristics = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isFetchingImage = new MutableLiveData<>(false);
 
     private String plantType;
     private String subType;
@@ -144,5 +145,13 @@ public class SharedViewModel extends ViewModel {
 
     public void setPlantCharacteristics(List<String> characteristics) {
         plantCharacteristics.postValue(characteristics);
+    }
+
+    public LiveData<Boolean> getIsFetchingImage() {
+        return isFetchingImage;
+    }
+
+    public void setIsFetchingImage(boolean fetching) {
+        isFetchingImage.postValue(fetching);
     }
 }
