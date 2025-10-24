@@ -49,9 +49,10 @@ public class AoisFragment extends Fragment {
     private ArrayList<Integer> aoiPoints = new ArrayList<>();
     private ArrayList<String> selectedPlants;
     private ArrayList<String> aoiPlantNames = new ArrayList<>();
-    private String imageUriString;
     private List<Integer> aoiColors = new ArrayList<>();
     private int currentAugmentSize = 65;
+    private String imageUri;
+
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -60,7 +61,6 @@ public class AoisFragment extends Fragment {
         sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
         if (getArguments() != null) {
             selectedPlants = getArguments().getStringArrayList("selected_plants");
-            imageUriString = getArguments().getString("image_uri");
         }
     }
 
@@ -77,9 +77,16 @@ public class AoisFragment extends Fragment {
             currentAugmentSize = size;
         });
 
+        sharedViewModel.getImageUri().observe(getViewLifecycleOwner(), uri -> {
+            if (uri != null) {
+                this.imageUri = uri;
+                setupImageView(uri);
+            }
+        });
+
+
         initializeAoiColors();
         setupAoiTypeSpinner();
-        setupImageView();
 
         augmentButton.setOnClickListener(v -> {
             if (mainActivity != null) {
@@ -90,11 +97,25 @@ public class AoisFragment extends Fragment {
                 String plantType = sharedViewModel.getPlantType();
                 String subType = sharedViewModel.getSubType();
                 String age = sharedViewModel.getAge();
-                mainActivity.requestAugmentedImage(imageUriString, aoiPlantNames, getScaledAoiPoints(), plantType, subType, age);
+                mainActivity.requestAugmentedImage(this.imageUri, aoiPlantNames, getScaledAoiPoints(), plantType, subType, age);
             }
         });
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (originalBitmap != null) {
+            originalBitmap.recycle();
+            originalBitmap = null;
+        }
+        if (mutableBitmap != null) {
+            mutableBitmap.recycle();
+            mutableBitmap = null;
+        }
+        previewImageView.setImageDrawable(null);
     }
 
     private void initializeAoiColors() {
@@ -144,7 +165,7 @@ public class AoisFragment extends Fragment {
         }
     }
 
-    private void setupImageView() {
+    private void setupImageView(String imageUriString) {
         if (imageUriString != null) {
             try {
                 Uri imageUri = Uri.parse(imageUriString);

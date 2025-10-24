@@ -102,11 +102,11 @@ public class AoiSelectFragment extends Fragment implements AoiSelectAdapter.OnIt
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == getActivity().RESULT_OK) {
+            if (photoURI != null) {
+                sharedViewModel.setImageUri(photoURI.toString());
+            }
             Bundle bundle = new Bundle();
             bundle.putStringArrayList("selected_plants", new ArrayList<>(adapter.getSelectedPlants()));
-            if (photoURI != null) {
-                bundle.putString("image_uri", photoURI.toString());
-            }
             NavHostFragment.findNavController(this).navigate(R.id.action_aoiSelectFragment_to_aoisFragment, bundle);
         }
     }

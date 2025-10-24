@@ -13,15 +13,18 @@ import io.getstream.photoview.PhotoView;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
+import androidx.lifecycle.ViewModelProvider;
+
 public class ImageFragment extends Fragment {
 
-    private static final String ARG_IMAGE = "image";
-    private byte[] image;
+    private static final String ARG_POSITION = "position";
+    private int position;
+    private SharedViewModel sharedViewModel;
 
-    public static ImageFragment newInstance(byte[] image) {
+    public static ImageFragment newInstance(int position) {
         ImageFragment fragment = new ImageFragment();
         Bundle args = new Bundle();
-        args.putByteArray(ARG_IMAGE, image);
+        args.putInt(ARG_POSITION, position);
         fragment.setArguments(args);
         return fragment;
     }
@@ -29,8 +32,9 @@ public class ImageFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
         if (getArguments() != null) {
-            image = getArguments().getByteArray(ARG_IMAGE);
+            position = getArguments().getInt(ARG_POSITION);
         }
     }
 
@@ -44,11 +48,15 @@ public class ImageFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         PhotoView imageView = view.findViewById(R.id.image_view);
-        if (image != null) {
-            Bitmap bitmap = BitmapFactory.decodeByteArray(image, 0, image.length);
-            imageView.setImageBitmap(bitmap);
-        }
-
+        sharedViewModel.getAugmentedResult().observe(getViewLifecycleOwner(), images -> {
+            if (images != null && position < images.size()) {
+                byte[] image = images.get(position);
+                if (image != null) {
+                    Bitmap bitmap = BitmapFactory.decodeByteArray(image, 0, image.length);
+                    imageView.setImageBitmap(bitmap);
+                }
+            }
+        });
     }
 
 }
