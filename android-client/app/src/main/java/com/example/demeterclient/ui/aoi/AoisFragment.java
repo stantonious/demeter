@@ -104,6 +104,20 @@ public class AoisFragment extends Fragment {
         return view;
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (originalBitmap != null) {
+            originalBitmap.recycle();
+            originalBitmap = null;
+        }
+        if (mutableBitmap != null) {
+            mutableBitmap.recycle();
+            mutableBitmap = null;
+        }
+        previewImageView.setImageDrawable(null);
+    }
+
     private void initializeAoiColors() {
         aoiColors.add(Color.RED);
         aoiColors.add(Color.BLUE);
