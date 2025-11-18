@@ -1,0 +1,6 @@
+langchain
+langchain-community
+llama-cpp-python
+chromadb
+flask
+pypdf

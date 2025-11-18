@@ -7,6 +7,7 @@ import os
 import re
 import io
 import json
+import requests
 from flask import request
 import urllib.request
 from flask_cors import cross_origin  # Removed CORS as it's handled in __init__
@@ -360,8 +361,15 @@ def create_dalle():
                         "The new plant should look like it belongs with the others in the scene."
                     )
                 else:
+                    rag_query = plant_names[idx]
+                    rag_service_url = os.environ.get("RAG_SERVICE_URL", "http://127.0.0.1:5000")
+                    rag_response = requests.get(f"{rag_service_url}/query", params={'query': rag_query})
+                    rag_context = ""
+                    if rag_response.status_code == 200:
+                        rag_context = rag_response.json().get("response", "")
                     prompt = (
                         f"An ultra realistic, {sub_type} {plant_names[idx]} of type {plant_type}. "
+                        f"{rag_context} "
                         "The plant is in a natural scene with shadows cast onto the surrounding terrain. "
                         "The plant should emerge organically from the terrain, its foliage interacting naturally with its surroundings. "
                         #"The plant’s colors and textures harmonize with the surrounding palette, enhancing the realism. "
